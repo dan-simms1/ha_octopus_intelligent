@@ -18,6 +18,24 @@ NOTE: It has come to my attention that, when outside core offpeak hours (2330 ->
 
 * `select.octopus_intelligent_target_time` and `select.octopus_intelligent_target_soc` - controls your Octopus Intelligent target ready time and SoC %.
 
+## Intelligent charging entities
+
+Every supported vehicle now exposes its own set of entities (switches, selects, sensors) alongside the original account-level summary entities.  This means your dashboard can display and control each car independently while still offering a single “Octopus Intelligent Tariff” view for quick status checks.
+
+### Target ready time sensors
+
+- `sensor.octopus_intelligent_target_ready_time` shows the earliest active “ready by” time across all vehicles.  The sensor switches between weekday/weekend schedules automatically and exposes rich attributes:
+	- `mode` – whether weekday or weekend schedules are currently active.
+	- `active_target_key` – which Octopus preference field supplied the live time.
+	- `device_targets` – a list of every supported device with its weekday/weekend target times and SOC limits.
+	- `target_device_id` / `target_device_label` – the vehicle that currently drives the account summary.
+	- `device_count` – number of supported vehicles contributing to the summary.
+- Each vehicle also has its own `sensor.<equipment_name>_target_ready_time`, which inherits the weekday/weekend mode handling and reports that device’s SOC limits so automations can react to per-car changes.
+
+### Target SOC / Ready Time selects
+
+The per-vehicle selects (`select.<equipment_name>_target_state_of_charge` and `select.<equipment_name>_target_ready_by_time`) now initialise immediately from coordinator data after Home Assistant restarts.  Their state only updates when Octopus sends fresh preferences, keeping Recorder history clean while ensuring the UI always reflects the latest settings.
+
 ![image](https://user-images.githubusercontent.com/1478003/208247955-41b9bf37-4599-4d61-83b1-0cd97611a60e.png)
 
 # Guide

@@ -1,4 +1,5 @@
 """Support for Octopus Intelligent Tariff in the UK."""
+from dataclasses import dataclass
 from datetime import timedelta, datetime, timezone
 from typing import Any
 import asyncio
@@ -17,6 +18,72 @@ from .persistent_data import PersistentData, PersistentDataStore
 from .util import *
 
 _LOGGER = logging.getLogger(__name__)
+
+
+@dataclass
+class DeviceTargetSchedule:
+    device_id: str
+    label: str
+    weekday_target_time: str | None
+    weekend_target_time: str | None
+    active_target_time: str | None
+    weekday_target_soc: int | None
+    weekend_target_soc: int | None
+    minimum_soc: int | None
+    maximum_soc: int | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "device_id": self.device_id,
+            "label": self.label,
+            "weekday_target_time": self.weekday_target_time,
+            "weekend_target_time": self.weekend_target_time,
+            "active_target_time": self.active_target_time,
+            "weekday_target_soc": self.weekday_target_soc,
+            "weekend_target_soc": self.weekend_target_soc,
+            "minimum_soc": self.minimum_soc,
+            "maximum_soc": self.maximum_soc,
+        }
+
+    def as_device_attributes(self, mode: str) -> dict[str, Any]:
+        return {
+            "mode": mode,
+            "weekday_target_time": self.weekday_target_time,
+            "weekend_target_time": self.weekend_target_time,
+            "weekday_target_soc": self.weekday_target_soc,
+            "weekend_target_soc": self.weekend_target_soc,
+            "minimum_soc": self.minimum_soc,
+            "maximum_soc": self.maximum_soc,
+        }
+
+    def has_active_target(self) -> bool:
+        return bool(self.active_target_time)
+
+
+@dataclass
+class TargetReadySummary:
+    mode: str
+    active_target_key: str
+    active_target_time: str | None
+    target_device_id: str | None
+    target_device_label: str | None
+    device_targets: list[DeviceTargetSchedule]
+
+    def device_count(self) -> int:
+        return len(self.device_targets)
+
+    def as_combined_attributes(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode,
+            "active_target_key": self.active_target_key,
+            "device_targets": [target.as_dict() for target in self.device_targets],
+            "target_device_id": self.target_device_id,
+            "target_device_label": self.target_device_label,
+            "device_count": self.device_count(),
+        }
+
+    def first_target(self) -> DeviceTargetSchedule | None:
+        return self.device_targets[0] if self.device_targets else None
 
 class OctopusIntelligentSystem(DataUpdateCoordinator):
     def __init__(
@@ -95,9 +162,14 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
         """
         try:
             async with asyncio.timeout(90):
-                devices = await self.client.async_get_devices(self._account_id)
+                raw_devices = await self.client.async_get_devices(self._account_id)
+                devices = [
+                    device
+                    for device in raw_devices or []
+                    if is_supported_equipment(device)
+                ]
                 if not devices:
-                    raise UpdateFailed("No intelligent equipment found for account")
+                    raise UpdateFailed("No supported intelligent equipment found for account")
 
                 device_states: dict[str, Any] = {}
                 union_planned: list[dict[str, Any]] = []
@@ -267,6 +339,13 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
             return devices[lookup_id]
         return None
 
+    def get_device_state(self, device_id: str | None = None):
+        return self._get_device_state(device_id)
+
+    def get_supported_device_ids(self) -> list[str]:
+        devices = (self.data or {}).get("devices") or {}
+        return list(devices.keys())
+
     def get_primary_equipment_id(self) -> str | None:
         data_primary = (self.data or {}).get("primary_equipment_id") if self.data else None
         return data_primary or self._primary_equipment_id
@@ -307,21 +386,47 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
         target_device = device_id or self.get_primary_equipment_id()
         await self.client.async_resume_smart_charging(self._account_id, target_device)
 
-    def is_boost_charging_now(self):
-        return self.is_charging_now('bump-charge')
+    def is_boost_charging_now(self, device_id: str | None = None):
+        return self.is_charging_now('bump-charge', device_id=device_id)
 
-    def is_off_peak_charging_now(self, minutes_offset: int = 0):
-        return self.is_charging_now('smart-charge', minutes_offset=minutes_offset)
+    def is_off_peak_charging_now(
+        self,
+        minutes_offset: int = 0,
+        device_id: str | None = None,
+    ):
+        return self.is_charging_now(
+            'smart-charge',
+            minutes_offset=minutes_offset,
+            device_id=device_id,
+        )
 
-    def next_offpeak_start_utc(self, minutes_offset: int = 0):
-        offpeak_range = self.next_offpeak_range_utc(minutes_offset=minutes_offset)
+    def next_offpeak_start_utc(
+        self,
+        minutes_offset: int = 0,
+        device_id: str | None = None,
+    ):
+        offpeak_range = self.next_offpeak_range_utc(
+            minutes_offset=minutes_offset,
+            device_id=device_id,
+        )
         return offpeak_range["start"] if offpeak_range is not None else None
 
-    def next_offpeak_end_utc(self, minutes_offset: int = 0):
-        offpeak_range = self.next_offpeak_range_utc(minutes_offset=minutes_offset)
+    def next_offpeak_end_utc(
+        self,
+        minutes_offset: int = 0,
+        device_id: str | None = None,
+    ):
+        offpeak_range = self.next_offpeak_range_utc(
+            minutes_offset=minutes_offset,
+            device_id=device_id,
+        )
         return offpeak_range["end"] if offpeak_range is not None else None
 
-    def next_offpeak_range_utc(self, minutes_offset: int = 0):
+    def next_offpeak_range_utc(
+        self,
+        minutes_offset: int = 0,
+        device_id: str | None = None,
+    ):
         utcnow = dt_util.utcnow() + timedelta(minutes=minutes_offset)
         localdate = dt_util.start_of_local_day(dt_util.as_local(utcnow))
         fixed_start_b1 = dt_util.as_utc(localdate - timedelta(days=1) + self._off_peak_start)
@@ -347,9 +452,13 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
             ]
 
         for state in (self.data or {}).get('plannedDispatches', []):
+            if device_id and state.get('meta', {}).get('deviceId') != device_id:
+                continue
             if state.get('meta', {}).get('source', '') == 'smart-charge':
-                startUtc = datetime.strptime(state.get('startDtUtc'), '%Y-%m-%d %H:%M:%S%z').astimezone(timezone.utc)
-                endUtc = datetime.strptime(state.get('endDtUtc'), '%Y-%m-%d %H:%M:%S%z').astimezone(timezone.utc)
+                startUtc = self._parse_dispatch_datetime(state.get('startDtUtc'))
+                endUtc = self._parse_dispatch_datetime(state.get('endDtUtc'))
+                if not startUtc or not endUtc:
+                    continue
                 all_offpeak_ranges.append({"start": startUtc, "end": endUtc})
 
         # merge overlapping ones:
@@ -360,6 +469,24 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
             endUtc = offpeak_range["end"]
             if startUtc <= utcnow <= endUtc or utcnow <= startUtc:
                 return offpeak_range
+        return None
+
+    def current_intelligent_charge_start_utc(
+        self,
+        device_id: str | None = None,
+    ):
+        utcnow = dt_util.utcnow()
+        for state in (self.data or {}).get('plannedDispatches', []):
+            if state.get('meta', {}).get('source') != 'smart-charge':
+                continue
+            if device_id and state.get('meta', {}).get('deviceId') != device_id:
+                continue
+            start_utc = self._parse_dispatch_datetime(state.get('startDtUtc'))
+            end_utc = self._parse_dispatch_datetime(state.get('endDtUtc'))
+            if not start_utc or not end_utc:
+                continue
+            if start_utc <= utcnow <= end_utc:
+                return start_utc
         return None
 
 
@@ -380,11 +507,24 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
 
         for state in dispatches:
             if source is None or state.get('meta', {}).get('source', '') == source:
-                startUtc = datetime.strptime(state.get('startDtUtc'), '%Y-%m-%d %H:%M:%S%z').astimezone(timezone.utc)
-                endUtc = datetime.strptime(state.get('endDtUtc'), '%Y-%m-%d %H:%M:%S%z').astimezone(timezone.utc)
+                startUtc = self._parse_dispatch_datetime(state.get('startDtUtc'))
+                endUtc = self._parse_dispatch_datetime(state.get('endDtUtc'))
+                if not startUtc or not endUtc:
+                    continue
                 if startUtc <= utcnow <= endUtc:
                     return True
         return False
+
+    @staticmethod
+    def _parse_dispatch_datetime(value):
+        if isinstance(value, datetime):
+            return value.astimezone(timezone.utc)
+        if isinstance(value, str):
+            try:
+                return datetime.strptime(value, '%Y-%m-%d %H:%M:%S%z').astimezone(timezone.utc)
+            except ValueError:
+                return None
+        return None
 
     def is_off_peak_time_now(self, minutes_offset: int = 0):
         now = dt_util.now() + timedelta(minutes=minutes_offset)
@@ -410,6 +550,56 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
         if not device_state:
             return None
         return device_state.get('preferences', {}).get('weekdayTargetTime')
+
+    def get_active_target_key(self) -> str:
+        weekday_index = dt_util.now().weekday()
+        return 'weekendTargetTime' if weekday_index >= 5 else 'weekdayTargetTime'
+
+    def get_ready_time_summary(self, device_id: str | None = None) -> TargetReadySummary:
+        target_key = self.get_active_target_key()
+        mode = 'weekend' if target_key == 'weekendTargetTime' else 'weekday'
+        device_ids = self.get_supported_device_ids()
+        if device_id:
+            device_ids = [device_id]
+
+        device_targets: list[DeviceTargetSchedule] = []
+        for current_device_id in device_ids:
+            state = self.get_device_state(current_device_id) or {}
+            preferences = (state.get('preferences') or {})
+            device = state.get('device') or {}
+            label = format_equipment_name(
+                device,
+                fallback=f"Equipment {current_device_id}",
+            )
+            device_targets.append(
+                DeviceTargetSchedule(
+                    device_id=current_device_id,
+                    label=label,
+                    weekday_target_time=preferences.get('weekdayTargetTime'),
+                    weekend_target_time=preferences.get('weekendTargetTime'),
+                    active_target_time=preferences.get(target_key),
+                    weekday_target_soc=preferences.get('weekdayTargetSoc'),
+                    weekend_target_soc=preferences.get('weekendTargetSoc'),
+                    minimum_soc=preferences.get('minimumSoc'),
+                    maximum_soc=preferences.get('maximumSoc'),
+                )
+            )
+
+        active_entry: DeviceTargetSchedule | None = None
+        for entry in device_targets:
+            if not entry.has_active_target():
+                continue
+            if not active_entry or entry.active_target_time < active_entry.active_target_time:
+                active_entry = entry
+
+        return TargetReadySummary(
+            mode=mode,
+            active_target_key=target_key,
+            active_target_time=(active_entry.active_target_time if active_entry else None),
+            target_device_id=(active_entry.device_id if active_entry else None),
+            target_device_label=(active_entry.label if active_entry else None),
+            device_targets=device_targets,
+        )
 
     async def async_set_target_soc(self, target_soc: int, device_id: str | None = None):
         target_time_str = self.get_target_time(device_id)
@@ -439,10 +629,13 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
         )
         await self.async_refresh()
 
-    async def async_start_boost_charge(self):
-        await self.client.async_trigger_boost_charge(self._account_id)
-    async def async_cancel_boost_charge(self):
-        await self.client.async_cancel_boost_charge(self._account_id)
+    async def async_start_boost_charge(self, device_id: str | None = None):
+        target_device = device_id or self.get_primary_equipment_id()
+        await self.client.async_trigger_boost_charge(self._account_id, target_device)
+
+    async def async_cancel_boost_charge(self, device_id: str | None = None):
+        target_device = device_id or self.get_primary_equipment_id()
+        await self.client.async_cancel_boost_charge(self._account_id, target_device)
 
     async def async_remove_entry(self):
         """Called when the integration (config entry) is removed from Home Assistant."""

@@ -145,14 +145,14 @@ class OctopusEnergyGraphQLClient:
       )
     )
 
-  async def async_trigger_boost_charge(self, account_id: str):
+  async def async_trigger_boost_charge(self, account_id: str, device_id: Optional[str] = None):
     return await self.__async_execute_with_session(
-      lambda session: self.__async_trigger_boost_charge(session, account_id)
+      lambda session: self.__async_trigger_boost_charge(session, account_id, device_id)
     )
 
-  async def async_cancel_boost_charge(self, account_id: str):
+  async def async_cancel_boost_charge(self, account_id: str, device_id: Optional[str] = None):
     return await self.__async_execute_with_session(
-      lambda session: self.__async_cancel_boost_charge(session, account_id)
+      lambda session: self.__async_cancel_boost_charge(session, account_id, device_id)
     )
 
   async def async_suspend_smart_charging(self, account_id: str, device_id: Optional[str] = None):
@@ -259,11 +259,11 @@ class OctopusEnergyGraphQLClient:
     result = await session.execute(query, variable_values=params, operation_name="setDevicePreferences")
     return result['setDevicePreferences']
 
-  async def __async_trigger_boost_charge(self, session, account_id: str):
+  async def __async_trigger_boost_charge(self, session, account_id: str, device_id: Optional[str]):
     query = gql(
       '''
-        mutation triggerBoostCharge($accountNumber: String!) {
-          triggerBoostCharge(input: { accountNumber: $accountNumber }) {
+        mutation triggerBoostCharge($accountNumber: String!, $deviceId: ID) {
+          triggerBoostCharge(input: { accountNumber: $accountNumber, deviceId: $deviceId }) {
             krakenflexDevice {
               krakenflexDeviceId
             }
@@ -272,15 +272,15 @@ class OctopusEnergyGraphQLClient:
       '''
     )
 
-    params = {"accountNumber": account_id}
+    params = {"accountNumber": account_id, "deviceId": device_id}
     result = await session.execute(query, variable_values=params, operation_name="triggerBoostCharge")
     return result['triggerBoostCharge']
 
-  async def __async_cancel_boost_charge(self, session, account_id: str):
+  async def __async_cancel_boost_charge(self, session, account_id: str, device_id: Optional[str]):
     query = gql(
       '''
-        mutation deleteBoostCharge($accountNumber: String!) {
-          deleteBoostCharge(input: { accountNumber: $accountNumber }) {
+        mutation deleteBoostCharge($accountNumber: String!, $deviceId: ID) {
+          deleteBoostCharge(input: { accountNumber: $accountNumber, deviceId: $deviceId }) {
             krakenflexDevice {
               krakenflexDeviceId
             }
@@ -289,7 +289,7 @@ class OctopusEnergyGraphQLClient:
       '''
     )
 
-    params = {"accountNumber": account_id}
+    params = {"accountNumber": account_id, "deviceId": device_id}
     result = await session.execute(query, variable_values=params, operation_name="deleteBoostCharge")
     return result['deleteBoostCharge']
 

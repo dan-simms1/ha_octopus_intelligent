@@ -1,6 +1,8 @@
 from datetime import timedelta
 from typing import Any, Mapping
 
+from .const import SUPPORTED_DEVICE_TYPES, UNSUPPORTED_DEVICE_KEYWORDS
+
 
 def to_timedelta(str_time: str) -> timedelta:
     """Convert a time string to a timedelta."""
@@ -71,3 +73,30 @@ def format_equipment_name(device: Mapping[str, Any] | None, fallback: str | None
         return fallback_value.strip()
 
     return "Octopus Intelligent Equipment"
+
+
+def is_supported_equipment(device: Mapping[str, Any] | None) -> bool:
+    """Return True if the device represents a controllable vehicle or charger."""
+    if not isinstance(device, Mapping):
+        return False
+
+    device_type = device.get("deviceType")
+    if isinstance(device_type, str) and device_type.strip():
+        normalized = device_type.strip().upper()
+        if any(keyword in normalized for keyword in UNSUPPORTED_DEVICE_KEYWORDS):
+            return False
+        if normalized in SUPPORTED_DEVICE_TYPES:
+            return True
+
+    indicative_fields = (
+        "make",
+        "model",
+        "vehicleMake",
+        "vehicleModel",
+        "chargePointMake",
+        "chargePointModel",
+    )
+    return any(
+        isinstance(device.get(field), str) and device.get(field).strip()
+        for field in indicative_fields
+    )

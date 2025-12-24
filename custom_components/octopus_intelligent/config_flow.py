@@ -35,7 +35,7 @@ from .const import (
     INTELLIGENT_24HR_TIMES
 )
 from .graphql_util import InvalidAuthError, validate_octopus_account
-from .util import format_equipment_name
+from .util import format_equipment_name, is_supported_equipment
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -254,6 +254,8 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
         for device in devices or []:
             device_id = device.get("id")
             if not device_id:
+                continue
+            if not is_supported_equipment(device):
                 continue
             label = format_equipment_name(device, fallback="Unknown equipment")
             options.append({"value": device_id, "label": label})
