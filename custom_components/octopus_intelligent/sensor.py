@@ -12,6 +12,7 @@ from homeassistant.helpers.event import (
     async_track_utc_time_change
 )
 from .const import DOMAIN, OCTOPUS_SYSTEM
+from .entity import OctopusIntelligentPerDeviceEntityMixin
 from .util import format_equipment_name
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback, HomeAssistant
@@ -56,10 +57,27 @@ async def async_setup_entry(
             )
         )
 
+    slot_windows = [
+        ("Octopus Intelligent Slot Next 1 Hour", 60),
+        ("Octopus Intelligent Slot Next 2 Hours", 120),
+        ("Octopus Intelligent Slot Next 3 Hours", 180),
+    ]
+    for name, minutes in slot_windows:
+        entities.append(
+            OctopusIntelligentSlotForecastSensor(
+                hass,
+                octopus_system,
+                name,
+                look_ahead_mins=minutes,
+            )
+        )
+
     async_add_entities(entities, False)
 
 
-class OctopusIntelligentNextOffpeakTime(CoordinatorEntity, SensorEntity):
+class OctopusIntelligentNextOffpeakTime(
+    OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, SensorEntity
+):
     def __init__(self, hass, octopus_system, *, device_id: str | None = None) -> None:
         """Initialize the sensor."""
         super().__init__(octopus_system)
@@ -89,18 +107,6 @@ class OctopusIntelligentNextOffpeakTime(CoordinatorEntity, SensorEntity):
             if log_on_error:
                 _LOGGER.exception("Could not set native_value")
         return False
-
-    def _equipment_state(self) -> dict[str, Any] | None:
-        if self._device_id is None:
-            return None
-        devices = (self._octopus_system.data or {}).get("devices") or {}
-        return devices.get(self._device_id)
-
-    def _equipment_label(self) -> str:
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device")
-        fallback = f"Equipment {self._device_id}" if self._device_id else "Equipment"
-        return format_equipment_name(device, fallback=fallback)
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -147,16 +153,9 @@ class OctopusIntelligentNextOffpeakTime(CoordinatorEntity, SensorEntity):
                 "manufacturer": "Octopus",
             }
 
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device") or {}
-        manufacturer = device.get("provider") or "Octopus"
-        identifier = f"{self._octopus_system.account_id}_{self._device_id}"
-        return {
-            "identifiers": {(DOMAIN, identifier)},
-            "name": self._equipment_label(),
-            "manufacturer": manufacturer,
-            "via_device": ("AccountID", self._octopus_system.account_id),
-        }
+        info = self._device_info()
+        info["via_device"] = ("AccountID", self._octopus_system.account_id)
+        return info
 
     @property
     def icon(self):
@@ -166,7 +165,9 @@ class OctopusIntelligentNextOffpeakTime(CoordinatorEntity, SensorEntity):
         self._timer()
 
 
-class OctopusIntelligentOffpeakEndTime(CoordinatorEntity, SensorEntity):
+class OctopusIntelligentOffpeakEndTime(
+    OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, SensorEntity
+):
     def __init__(self, hass, octopus_system, *, device_id: str | None = None) -> None:
         """Initialize the sensor."""
         super().__init__(octopus_system)
@@ -202,18 +203,6 @@ class OctopusIntelligentOffpeakEndTime(CoordinatorEntity, SensorEntity):
                 if log_on_error:
                     _LOGGER.exception("Could not set native_value")
         return False
-
-    def _equipment_state(self) -> dict[str, Any] | None:
-        if self._device_id is None:
-            return None
-        devices = (self._octopus_system.data or {}).get("devices") or {}
-        return devices.get(self._device_id)
-
-    def _equipment_label(self) -> str:
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device")
-        fallback = f"Equipment {self._device_id}" if self._device_id else "Equipment"
-        return format_equipment_name(device, fallback=fallback)
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -258,16 +247,9 @@ class OctopusIntelligentOffpeakEndTime(CoordinatorEntity, SensorEntity):
                 "manufacturer": "Octopus",
             }
 
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device") or {}
-        manufacturer = device.get("provider") or "Octopus"
-        identifier = f"{self._octopus_system.account_id}_{self._device_id}"
-        return {
-            "identifiers": {(DOMAIN, identifier)},
-            "name": self._equipment_label(),
-            "manufacturer": manufacturer,
-            "via_device": ("AccountID", self._octopus_system.account_id),
-        }
+        info = self._device_info()
+        info["via_device"] = ("AccountID", self._octopus_system.account_id)
+        return info
 
     @property
     def icon(self):
@@ -277,7 +259,9 @@ class OctopusIntelligentOffpeakEndTime(CoordinatorEntity, SensorEntity):
         self._timer()
 
 
-class OctopusIntelligentChargingStartSensor(CoordinatorEntity, SensorEntity):
+class OctopusIntelligentChargingStartSensor(
+    OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, SensorEntity
+):
     def __init__(
         self,
         hass,
@@ -313,18 +297,6 @@ class OctopusIntelligentChargingStartSensor(CoordinatorEntity, SensorEntity):
             if log_on_error:
                 _LOGGER.exception("Could not set native_value")
         return False
-
-    def _equipment_state(self) -> dict[str, Any] | None:
-        if self._device_id is None:
-            return None
-        devices = (self._octopus_system.data or {}).get("devices") or {}
-        return devices.get(self._device_id)
-
-    def _equipment_label(self) -> str:
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device")
-        fallback = f"Equipment {self._device_id}" if self._device_id else "Equipment"
-        return format_equipment_name(device, fallback=fallback)
 
     @callback
     def _handle_coordinator_update(self) -> None:
@@ -365,16 +337,9 @@ class OctopusIntelligentChargingStartSensor(CoordinatorEntity, SensorEntity):
                 "manufacturer": "Octopus",
             }
 
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device") or {}
-        manufacturer = device.get("provider") or "Octopus"
-        identifier = f"{self._octopus_system.account_id}_{self._device_id}"
-        return {
-            "identifiers": {(DOMAIN, identifier)},
-            "name": self._equipment_label(),
-            "manufacturer": manufacturer,
-            "via_device": ("AccountID", self._octopus_system.account_id),
-        }
+        info = self._device_info()
+        info["via_device"] = ("AccountID", self._octopus_system.account_id)
+        return info
 
     @property
     def icon(self):
@@ -384,7 +349,9 @@ class OctopusIntelligentChargingStartSensor(CoordinatorEntity, SensorEntity):
         self._timer()
 
 
-class OctopusIntelligentTargetReadyTimeSensor(CoordinatorEntity, SensorEntity):
+class OctopusIntelligentTargetReadyTimeSensor(
+    OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, SensorEntity
+):
     def __init__(
         self,
         octopus_system,
@@ -404,17 +371,6 @@ class OctopusIntelligentTargetReadyTimeSensor(CoordinatorEntity, SensorEntity):
         self._native_value: str | None = None
         self._attributes: dict[str, Any] = {}
         self._set_native_value()
-
-    def _equipment_state(self) -> dict[str, Any] | None:
-        if self._is_combined:
-            return None
-        return self._octopus_system.get_device_state(self._device_id)
-
-    def _equipment_label(self) -> str:
-        device_state = self._equipment_state() or {}
-        device = (device_state or {}).get("device")
-        fallback = f"Equipment {self._device_id}" if self._device_id else "Equipment"
-        return format_equipment_name(device, fallback=fallback)
 
     def _set_native_value(self) -> None:
         summary = self._octopus_system.get_ready_time_summary(
@@ -480,4 +436,89 @@ class OctopusIntelligentTargetReadyTimeSensor(CoordinatorEntity, SensorEntity):
     @property
     def icon(self):
         return "mdi:clock-check"
+
+
+class OctopusIntelligentSlotForecastSensor(CoordinatorEntity, SensorEntity):
+    def __init__(
+        self,
+        hass,
+        octopus_system,
+        name: str,
+        *,
+        look_ahead_mins: int,
+    ) -> None:
+        super().__init__(octopus_system)
+        self._octopus_system = octopus_system
+        self._name = name
+        self._look_ahead_mins = look_ahead_mins
+        base_unique_id = slugify(name)
+        self._unique_id = f"{base_unique_id}_sensor"
+        self._attributes: dict[str, Any] = {"look_ahead_minutes": look_ahead_mins}
+        self._native_value: str | None = None
+        self._timer = async_track_utc_time_change(
+            hass, self.timer_update, minute=range(0, 60, 30), second=1
+        )
+        self._update_native_value(log_on_error=False)
+
+    def _has_continuous_offpeak(self) -> bool:
+        mins_looked = 0
+        while mins_looked <= self._look_ahead_mins:
+            if not self._octopus_system.is_off_peak_now(mins_looked):
+                return False
+            mins_looked += 30
+        return True
+
+    def _update_native_value(self, log_on_error: bool = True) -> bool:
+        try:
+            self._native_value = (
+                "available" if self._has_continuous_offpeak() else "unavailable"
+            )
+            return True
+        except Exception:  # pylint: disable=broad-except
+            if log_on_error:
+                _LOGGER.exception("Could not calculate slot availability")
+        return False
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        if self._update_native_value():
+            self.async_write_ha_state()
+
+    @callback
+    async def timer_update(self, time):
+        if self._update_native_value():
+            self.async_write_ha_state()
+
+    @property
+    def name(self):
+        return self._name
+
+    @property
+    def unique_id(self) -> str:
+        return self._unique_id
+
+    @property
+    def native_value(self):
+        return self._native_value
+
+    @property
+    def extra_state_attributes(self):
+        return self._attributes
+
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {
+                ("AccountID", self._octopus_system.account_id),
+            },
+            "name": "Octopus Intelligent Tariff",
+            "manufacturer": "Octopus",
+        }
+
+    @property
+    def icon(self):
+        return "mdi:timeline-clock"
+
+    async def async_will_remove_from_hass(self):
+        self._timer()
 

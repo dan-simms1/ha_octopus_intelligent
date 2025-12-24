@@ -1,7 +1,11 @@
 from datetime import timedelta
 from typing import Any, Mapping
 
-from .const import SUPPORTED_DEVICE_TYPES, UNSUPPORTED_DEVICE_KEYWORDS
+from .const import (
+    SUPPORTED_DEVICE_TYPES,
+    UNSUPPORTED_DEVICE_KEYWORDS,
+    UNSUPPORTED_DEVICE_PROVIDERS,
+)
 
 
 def to_timedelta(str_time: str) -> timedelta:
@@ -19,27 +23,19 @@ def to_hours_after_midnight(str_time: str) -> float:
 
 
 def merge_and_sort_time_ranges(date_ranges: list) -> list:
-    # Sort the time ranges by start time
-    date_ranges.sort(key=lambda r: r["start"])
-    
-    # initialize the list of merged date ranges
-    merged_date_ranges = []
-    
-    # initialize the current date range with the first date range in the list
-    current_date_range = date_ranges[0]
-    
-    # iterate through the rest of the date ranges
-    for i in range(1, len(date_ranges)):
-        # if the current date range overlaps with the next date range, update the end date of the current date range
-        if current_date_range["end"] >= date_ranges[i]["start"]:
-            current_date_range["end"] = max(current_date_range["end"], date_ranges[i]["end"])
-        # if the current date range does not overlap with the next date range, add the current date range to the list of merged date ranges and update the current date range
+    if not date_ranges:
+        return []
+
+    sorted_ranges = sorted(date_ranges, key=lambda r: r["start"])
+    merged_date_ranges = [sorted_ranges[0]]
+
+    for next_range in sorted_ranges[1:]:
+        current = merged_date_ranges[-1]
+        if current["end"] >= next_range["start"]:
+            current["end"] = max(current["end"], next_range["end"])
         else:
-            merged_date_ranges.append(current_date_range)
-            current_date_range = date_ranges[i]
-    
-    # add the final date range to the list of merged date ranges
-    merged_date_ranges.append(current_date_range)
+            merged_date_ranges.append(next_range)
+
     return merged_date_ranges
 
 
@@ -79,6 +75,16 @@ def is_supported_equipment(device: Mapping[str, Any] | None) -> bool:
     """Return True if the device represents a controllable vehicle or charger."""
     if not isinstance(device, Mapping):
         return False
+
+    provider = device.get("provider")
+    if isinstance(provider, str) and provider.strip():
+        if provider.strip().upper() in UNSUPPORTED_DEVICE_PROVIDERS:
+            return False
+
+    label = device.get("label")
+    if isinstance(label, str) and label.strip():
+        if label.strip().upper() in UNSUPPORTED_DEVICE_PROVIDERS:
+            return False
 
     device_type = device.get("deviceType")
     if isinstance(device_type, str) and device_type.strip():

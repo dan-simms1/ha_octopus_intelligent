@@ -439,30 +439,48 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
         fixed_end_a2 = dt_util.as_utc(localdate + timedelta(days=2) + self._off_peak_end)
 
         if fixed_start_b1 > fixed_end_b1:
-            all_offpeak_ranges = [
+            base_offpeak_ranges = [
                 {"start": fixed_start_b1, "end": fixed_end_0},
                 {"start": fixed_start_0, "end": fixed_end_a1},
                 {"start": fixed_start_a1, "end": fixed_end_a2}
             ]
         else:
-            all_offpeak_ranges = [
+            base_offpeak_ranges = [
                 {"start": fixed_start_b1, "end": fixed_end_b1},
                 {"start": fixed_start_0, "end": fixed_end_0},
                 {"start": fixed_start_a1, "end": fixed_end_a1},
             ]
 
-        for state in (self.data or {}).get('plannedDispatches', []):
-            if device_id and state.get('meta', {}).get('deviceId') != device_id:
-                continue
-            if state.get('meta', {}).get('source', '') == 'smart-charge':
-                startUtc = self._parse_dispatch_datetime(state.get('startDtUtc'))
-                endUtc = self._parse_dispatch_datetime(state.get('endDtUtc'))
-                if not startUtc or not endUtc:
-                    continue
-                all_offpeak_ranges.append({"start": startUtc, "end": endUtc})
+        targeted_dispatches: list[dict[str, Any]] = []
+        combined_dispatches: list[dict[str, Any]] = []
 
-        # merge overlapping ones:
-        offpeak_ranges = merge_and_sort_time_ranges(all_offpeak_ranges)
+        for state in (self.data or {}).get('plannedDispatches', []):
+            if state.get('meta', {}).get('source', '') != 'smart-charge':
+                continue
+
+            startUtc = self._parse_dispatch_datetime(state.get('startDtUtc'))
+            endUtc = self._parse_dispatch_datetime(state.get('endDtUtc'))
+            if not startUtc or not endUtc:
+                continue
+
+            entry = {"start": startUtc, "end": endUtc}
+            meta_device = state.get('meta', {}).get('deviceId')
+
+            if device_id:
+                if meta_device == device_id:
+                    targeted_dispatches.append(entry)
+            else:
+                combined_dispatches.append(entry)
+
+        if device_id:
+            candidate_ranges = targeted_dispatches or base_offpeak_ranges
+        else:
+            candidate_ranges = [*base_offpeak_ranges, *combined_dispatches]
+
+        if not candidate_ranges:
+            return None
+
+        offpeak_ranges = merge_and_sort_time_ranges(candidate_ranges)
 
         for offpeak_range in offpeak_ranges:
             startUtc = offpeak_range["start"]
@@ -476,18 +494,27 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
         device_id: str | None = None,
     ):
         utcnow = dt_util.utcnow()
+        next_start: datetime | None = None
+
         for state in (self.data or {}).get('plannedDispatches', []):
             if state.get('meta', {}).get('source') != 'smart-charge':
                 continue
             if device_id and state.get('meta', {}).get('deviceId') != device_id:
                 continue
+
             start_utc = self._parse_dispatch_datetime(state.get('startDtUtc'))
             end_utc = self._parse_dispatch_datetime(state.get('endDtUtc'))
             if not start_utc or not end_utc:
                 continue
+
             if start_utc <= utcnow <= end_utc:
                 return start_utc
-        return None
+
+            if start_utc > utcnow:
+                if not next_start or start_utc < next_start:
+                    next_start = start_utc
+
+        return next_start
 
 
     def is_charging_now(

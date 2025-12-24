@@ -14,7 +14,7 @@ from .const import (
     INTELLIGENT_CHARGE_TIMES,
     INTELLIGENT_SOC_OPTIONS,
 )
-from .util import format_equipment_name
+from .entity import OctopusIntelligentPerDeviceEntityMixin
 
 import logging
 
@@ -38,7 +38,9 @@ async def async_setup_entry(
         async_add_entities(entities, False)
 
 
-class OctopusIntelligentTargetSoc(CoordinatorEntity, SelectEntity):
+class OctopusIntelligentTargetSoc(
+    OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, SelectEntity
+):
     def __init__(
         self,
         octopus_system,
@@ -53,18 +55,6 @@ class OctopusIntelligentTargetSoc(CoordinatorEntity, SelectEntity):
         self._options = [f"{value}" for value in INTELLIGENT_SOC_OPTIONS]
         self._current_option: str | None = None
         self._refresh_current_option()
-
-    def _equipment_state(self) -> dict[str, Any] | None:
-        if not self._device_id:
-            return None
-        devices = (self._octopus_system.data or {}).get("devices") or {}
-        return devices.get(self._device_id)
-
-    def _equipment_label(self) -> str:
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device")
-        fallback = f"Equipment {self._device_id}"
-        return format_equipment_name(device, fallback=fallback)
 
     @property
     def name(self) -> str:
@@ -90,16 +80,7 @@ class OctopusIntelligentTargetSoc(CoordinatorEntity, SelectEntity):
 
     @property
     def device_info(self):
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device") or {}
-        manufacturer = device.get("provider") or "Octopus"
-        identifier = f"{self._octopus_system.account_id}_{self._device_id}"
-        return {
-            "identifiers": {(DOMAIN, identifier)},
-            "name": self._equipment_label(),
-            "manufacturer": manufacturer,
-            "via_device": ("AccountID", self._octopus_system.account_id),
-        }
+        return self._device_info()
 
     @property
     def unit_of_measurement(self) -> str:
@@ -131,7 +112,9 @@ class OctopusIntelligentTargetSoc(CoordinatorEntity, SelectEntity):
         self._current_option = f"{target_soc}" if target_soc is not None else None
 
 
-class OctopusIntelligentTargetTime(CoordinatorEntity, SelectEntity):
+class OctopusIntelligentTargetTime(
+    OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, SelectEntity
+):
     def __init__(
         self,
         octopus_system,
@@ -146,18 +129,6 @@ class OctopusIntelligentTargetTime(CoordinatorEntity, SelectEntity):
         self._options = list(INTELLIGENT_CHARGE_TIMES)
         self._current_option: str | None = None
         self._refresh_current_option()
-
-    def _equipment_state(self) -> dict[str, Any] | None:
-        if not self._device_id:
-            return None
-        devices = (self._octopus_system.data or {}).get("devices") or {}
-        return devices.get(self._device_id)
-
-    def _equipment_label(self) -> str:
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device")
-        fallback = f"Equipment {self._device_id}"
-        return format_equipment_name(device, fallback=fallback)
 
     @property
     def name(self) -> str:
@@ -183,16 +154,7 @@ class OctopusIntelligentTargetTime(CoordinatorEntity, SelectEntity):
 
     @property
     def device_info(self):
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device") or {}
-        manufacturer = device.get("provider") or "Octopus"
-        identifier = f"{self._octopus_system.account_id}_{self._device_id}"
-        return {
-            "identifiers": {(DOMAIN, identifier)},
-            "name": self._equipment_label(),
-            "manufacturer": manufacturer,
-            "via_device": ("AccountID", self._octopus_system.account_id),
-        }
+        return self._device_info()
 
     @property
     def icon(self) -> str:
@@ -211,5 +173,17 @@ class OctopusIntelligentTargetTime(CoordinatorEntity, SelectEntity):
         self.async_write_ha_state()
 
     def _refresh_current_option(self) -> None:
-        self._current_option = self._octopus_system.get_target_time(self._device_id)
+        summary = self._octopus_system.get_ready_time_summary(self._device_id)
+        if summary.active_target_time:
+            self._current_option = summary.active_target_time
+            return
+
+        device_entry = summary.first_target()
+        if device_entry:
+            self._current_option = (
+                device_entry.weekday_target_time
+                or device_entry.weekend_target_time
+            )
+        else:
+            self._current_option = None
 

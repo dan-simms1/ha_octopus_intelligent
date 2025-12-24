@@ -8,7 +8,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import slugify
 
 from .const import DOMAIN, OCTOPUS_SYSTEM
-from .util import format_equipment_name
+from .entity import OctopusIntelligentPerDeviceEntityMixin
 
 import logging
 
@@ -36,7 +36,9 @@ async def async_setup_entry(
         async_add_entities(entities, False)
 
 
-class OctopusIntelligentBumpChargeSwitch(CoordinatorEntity, SwitchEntity):
+class OctopusIntelligentBumpChargeSwitch(
+    OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, SwitchEntity
+):
     def __init__(self, octopus_system, *, device_id: str) -> None:
         super().__init__(octopus_system)
         self._octopus_system = octopus_system
@@ -78,35 +80,18 @@ class OctopusIntelligentBumpChargeSwitch(CoordinatorEntity, SwitchEntity):
             return False
         return bool(self._equipment_state())
 
-    def _equipment_state(self) -> dict[str, Any] | None:
-        devices = (self._octopus_system.data or {}).get("devices") or {}
-        return devices.get(self._device_id)
-
-    def _equipment_label(self) -> str:
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device")
-        fallback = f"Equipment {self._device_id}"
-        return format_equipment_name(device, fallback=fallback)
-
     @property
     def device_info(self):
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device") or {}
-        manufacturer = device.get("provider") or "Octopus"
-        identifier = f"{self._octopus_system.account_id}_{self._device_id}"
-        return {
-            "identifiers": {(DOMAIN, identifier)},
-            "name": self._equipment_label(),
-            "manufacturer": manufacturer,
-            "via_device": ("AccountID", self._octopus_system.account_id),
-        }
+        return self._device_info()
 
     @property
     def icon(self):
         return "mdi:car-electric-outline"
 
 
-class OctopusIntelligentSmartChargeSwitch(CoordinatorEntity, SwitchEntity):
+class OctopusIntelligentSmartChargeSwitch(
+    OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, SwitchEntity
+):
     def __init__(
         self,
         octopus_system,
@@ -119,18 +104,6 @@ class OctopusIntelligentSmartChargeSwitch(CoordinatorEntity, SwitchEntity):
         base_unique_id = "octopus_intelligent_smart_charging"
         self._unique_id = f"{base_unique_id}_{slugify(device_id)}"
         self._is_on = octopus_system.is_smart_charging_enabled(device_id)
-
-    def _equipment_state(self) -> dict[str, Any] | None:
-        if not self._device_id:
-            return None
-        devices = (self._octopus_system.data or {}).get("devices") or {}
-        return devices.get(self._device_id)
-
-    def _equipment_label(self) -> str:
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device")
-        fallback = f"Equipment {self._device_id}"
-        return format_equipment_name(device, fallback=fallback)
 
     @property
     def name(self):
@@ -152,16 +125,7 @@ class OctopusIntelligentSmartChargeSwitch(CoordinatorEntity, SwitchEntity):
 
     @property
     def device_info(self):
-        device_state = self._equipment_state() or {}
-        device = device_state.get("device") or {}
-        manufacturer = device.get("provider") or "Octopus"
-        identifier = f"{self._octopus_system.account_id}_{self._device_id}"
-        return {
-            "identifiers": {(DOMAIN, identifier)},
-            "name": self._equipment_label(),
-            "manufacturer": manufacturer,
-            "via_device": ("AccountID", self._octopus_system.account_id),
-        }
+        return self._device_info()
 
     @property
     def icon(self):
