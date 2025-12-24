@@ -15,8 +15,14 @@ from homeassistant.const import (
 from homeassistant.helpers.selector import (
     SelectSelector,
     SelectSelectorConfig,
-    SelectSelectorOption,
 )
+
+try:  # SelectSelectorOption is missing on older HA cores
+    from homeassistant.helpers.selector import SelectSelectorOption  # type: ignore
+    SELECTOR_OPTION_SUPPORTED = True
+except ImportError:  # pragma: no cover - compatibility shim
+    SelectSelectorOption = None  # type: ignore
+    SELECTOR_OPTION_SUPPORTED = False
 
 from .const import (
     DOMAIN,
@@ -183,15 +189,11 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
         )] = vol.In(INTELLIGENT_24HR_TIMES)
 
         if device_selector_options:
+            selector_field = self._build_device_selector_field(device_selector_options)
             fields[vol.Optional(
                 CONF_PRIMARY_EQUIPMENT_ID,
                 default=form_values.get(CONF_PRIMARY_EQUIPMENT_ID, ""),
-            )] = SelectSelector(
-                SelectSelectorConfig(
-                    options=device_selector_options,
-                    mode="dropdown",
-                )
-            )
+            )] = selector_field
 
         return self.async_show_form(
             step_id="user",
@@ -199,13 +201,30 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
             errors=errors,
         )
 
+    def _build_device_selector_field(self, options: list[dict[str, str]]):
+        """Return a selector field or a simple fallback validator."""
+        if SELECTOR_OPTION_SUPPORTED and SelectSelectorOption is not None:
+            selector_options = [
+                SelectSelectorOption(value=opt["value"], label=opt.get("label"))
+                for opt in options
+            ]
+            return SelectSelector(
+                SelectSelectorConfig(
+                    options=selector_options,
+                    mode="dropdown",
+                )
+            )
+
+        allowed_values = [opt["value"] for opt in options]
+        return vol.In(allowed_values)
+
     async def _async_build_device_selector_options(
         self,
         api_key: str,
         account_id: str,
         preset_devices=None,
         suppress_errors: bool = False,
-    ) -> list[SelectSelectorOption]:
+    ) -> list[dict[str, str]]:
         if not api_key or not account_id:
             return []
 
@@ -231,22 +250,25 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
                     return []
                 raise
 
-        options: list[SelectSelectorOption] = []
+        options: list[dict[str, str]] = []
         for device in devices or []:
             device_id = device.get("id")
             if not device_id:
                 continue
             label = format_equipment_name(device, fallback="Unknown equipment")
-            options.append(SelectSelectorOption(value=device_id, label=label))
+            options.append({"value": device_id, "label": label})
 
         if not options:
             return []
 
-        default_option = SelectSelectorOption(
-            value="",
-            label="Auto (use first detected device)",
-        )
-        return [default_option, *sorted(options, key=lambda opt: (opt.label or opt.value))]
+        default_option = {
+            "value": "",
+            "label": "Auto (use first detected device)",
+        }
+        return [
+            default_option,
+            *sorted(options, key=lambda opt: (opt.get("label") or opt["value"])),
+        ]
 
 
 async def try_connection(api_key: str, account_id: str):
