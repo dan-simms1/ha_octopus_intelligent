@@ -21,6 +21,7 @@ ATTR_STATE = "state"
 
 CONF_OFFPEAK_START: Final = "offpeak_start"
 CONF_OFFPEAK_END: Final = "offpeak_end"
+CONF_PRIMARY_EQUIPMENT_ID: Final = "primary_equipment_id"
 
 CONF_OFFPEAK_START_DEFAULT: Final = "23:30"
 CONF_OFFPEAK_END_DEFAULT: Final = "05:30"

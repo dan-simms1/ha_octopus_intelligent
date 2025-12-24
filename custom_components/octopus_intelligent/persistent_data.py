@@ -1,6 +1,6 @@
 """Persistent data storage for the integration, based on the HASS helpers.storage.Store class."""
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
@@ -19,6 +19,7 @@ class PersistentData:
     """JSON-serialisable persistent data."""
 
     last_seen_planned_dispatch_source: str = "smart-charge"
+    last_seen_planned_dispatch_sources: dict[str, str] = field(default_factory=dict)
 
     def set_values(self, data: dict[str, Any]):
         """Assign values from the given dict to this dataclass."""
@@ -27,6 +28,10 @@ class PersistentData:
         self.last_seen_planned_dispatch_source = data.get(
             "last_seen_planned_dispatch_source",
             self.last_seen_planned_dispatch_source,
+        )
+        self.last_seen_planned_dispatch_sources = data.get(
+            "last_seen_planned_dispatch_sources",
+            self.last_seen_planned_dispatch_sources,
         )
 
 

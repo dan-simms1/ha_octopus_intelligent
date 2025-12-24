@@ -1,4 +1,6 @@
 from datetime import timedelta
+from typing import Any, Mapping
+
 
 def to_timedelta(str_time: str) -> timedelta:
     """Convert a time string to a timedelta."""
@@ -37,3 +39,35 @@ def merge_and_sort_time_ranges(date_ranges: list) -> list:
     # add the final date range to the list of merged date ranges
     merged_date_ranges.append(current_date_range)
     return merged_date_ranges
+
+
+def format_equipment_name(device: Mapping[str, Any] | None, fallback: str | None = None) -> str:
+    """Return a friendly label for an Octopus Intelligent device."""
+    if not isinstance(device, Mapping):
+        device = {}
+
+    parts: list[str] = []
+    label = device.get("label")
+    if isinstance(label, str) and label.strip():
+        parts.append(label.strip())
+
+    make = device.get("make") or device.get("vehicleMake") or device.get("chargePointMake")
+    model = device.get("model") or device.get("vehicleModel") or device.get("chargePointModel")
+    name = " ".join(part for part in [make, model] if isinstance(part, str) and part.strip())
+    if name:
+        parts.append(name)
+
+    provider = device.get("provider")
+    if isinstance(provider, str) and provider.strip():
+        provider_value = provider.strip()
+        if provider_value not in parts:
+            parts.append(provider_value)
+
+    if parts:
+        return " - ".join(parts)
+
+    fallback_value = fallback or device.get("id")
+    if isinstance(fallback_value, str) and fallback_value.strip():
+        return fallback_value.strip()
+
+    return "Octopus Intelligent Equipment"

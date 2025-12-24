@@ -17,7 +17,8 @@ from .const import(
 
     CONF_ACCOUNT_ID,
     CONF_OFFPEAK_START,
-    CONF_OFFPEAK_END
+    CONF_OFFPEAK_END,
+    CONF_PRIMARY_EQUIPMENT_ID,
 )
 from .util import to_timedelta
 
@@ -42,7 +43,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         api_key=entry.data[CONF_API_KEY],
         account_id=entry.data[CONF_ACCOUNT_ID],
         off_peak_start=to_timedelta(entry.data[CONF_OFFPEAK_START]),
-        off_peak_end=to_timedelta(entry.data[CONF_OFFPEAK_END])
+        off_peak_end=to_timedelta(entry.data[CONF_OFFPEAK_END]),
+        primary_equipment_id=entry.options.get(CONF_PRIMARY_EQUIPMENT_ID),
     )
 
     try:

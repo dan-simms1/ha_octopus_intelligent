@@ -27,16 +27,18 @@
       "cannot_connect": "Failed to connect, please try again.",
       "invalid_auth": "Invalid authentication.",
       "too_many_requests": "Too many requests, retry later.",
-      "unknown": "Unexpected error."
+      "unknown": "Unexpected error.",
+      "device_not_found": "Selected equipment could not be found. Refresh the list and try again."
     },
     "step": {
       "user": {
-        "description": "Update your Octopus Intelligent configuration settings.",
+        "description": "Update your Octopus Intelligent credentials, off-peak window, and choose which piece of equipment powers the legacy controls.",
         "data": {
           "api_key": "API Key",
           "account_id": "Account Id",
           "offpeak_start": "Offpeak Start (normally 23:30)",
-          "offpeak_end": "Offpeak End (normally 05:30)"
+          "offpeak_end": "Offpeak End (normally 05:30)",
+          "primary_equipment_id": "Primary Equipment"
         },
         "title": "Octopus Intelligent - Configuration"
       }
