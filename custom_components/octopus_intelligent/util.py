@@ -5,6 +5,7 @@ from .const import (
     SUPPORTED_DEVICE_TYPES,
     UNSUPPORTED_DEVICE_KEYWORDS,
     UNSUPPORTED_DEVICE_PROVIDERS,
+    UNSUPPORTED_DEVICE_IDENTIFIERS,
 )
 
 
@@ -70,39 +71,44 @@ def format_equipment_name(device: Mapping[str, Any] | None, fallback: str | None
 
     return "Octopus Intelligent Equipment"
 
+def _normalize_identifier(value: str | None) -> str:
+    if not isinstance(value, str):
+        return ""
+    uppercase = value.upper()
+    normalized = [
+        ch
+        for ch in uppercase
+        if ch.isalnum()
+    ]
+    return "".join(normalized)
+
 
 def is_supported_equipment(device: Mapping[str, Any] | None) -> bool:
     """Return True if the device represents a controllable vehicle or charger."""
     if not isinstance(device, Mapping):
         return False
 
-    provider = device.get("provider")
-    if isinstance(provider, str) and provider.strip():
-        if provider.strip().upper() in UNSUPPORTED_DEVICE_PROVIDERS:
-            return False
+    provider = _normalize_identifier(device.get("provider"))
+    if provider and provider in UNSUPPORTED_DEVICE_PROVIDERS:
+        return False
 
-    label = device.get("label")
-    if isinstance(label, str) and label.strip():
-        if label.strip().upper() in UNSUPPORTED_DEVICE_PROVIDERS:
-            return False
+    label = _normalize_identifier(device.get("label"))
+    if label and label in UNSUPPORTED_DEVICE_IDENTIFIERS:
+        return False
+
+    device_identifier = _normalize_identifier(device.get("id"))
+    if device_identifier and device_identifier in UNSUPPORTED_DEVICE_IDENTIFIERS:
+        return False
 
     device_type = device.get("deviceType")
-    if isinstance(device_type, str) and device_type.strip():
-        normalized = device_type.strip().upper()
-        if any(keyword in normalized for keyword in UNSUPPORTED_DEVICE_KEYWORDS):
-            return False
-        if normalized in SUPPORTED_DEVICE_TYPES:
-            return True
+    if not isinstance(device_type, str) or not device_type.strip():
+        return False
 
-    indicative_fields = (
-        "make",
-        "model",
-        "vehicleMake",
-        "vehicleModel",
-        "chargePointMake",
-        "chargePointModel",
-    )
-    return any(
-        isinstance(device.get(field), str) and device.get(field).strip()
-        for field in indicative_fields
-    )
+    normalized = device_type.strip().upper()
+    if normalized != "ELECTRIC_VEHICLES":
+        return False
+
+    if any(keyword in normalized for keyword in UNSUPPORTED_DEVICE_KEYWORDS):
+        return False
+
+    return True

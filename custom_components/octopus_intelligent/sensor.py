@@ -29,6 +29,8 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ):
     octopus_system = hass.data[DOMAIN][config_entry.entry_id][OCTOPUS_SYSTEM]
+    device_ids = octopus_system.get_supported_device_ids()
+
     entities: list[SensorEntity] = [
         OctopusIntelligentNextOffpeakTime(hass, octopus_system),
         OctopusIntelligentOffpeakEndTime(hass, octopus_system),
@@ -36,7 +38,7 @@ async def async_setup_entry(
         OctopusIntelligentTargetReadyTimeSensor(octopus_system),
     ]
 
-    for device_id in octopus_system.get_supported_device_ids():
+    for device_id in device_ids:
         entities.append(
             OctopusIntelligentNextOffpeakTime(hass, octopus_system, device_id=device_id)
         )
@@ -71,6 +73,18 @@ async def async_setup_entry(
                 look_ahead_mins=minutes,
             )
         )
+
+    for device_id in device_ids:
+        for base_name, minutes in slot_windows:
+            entities.append(
+                OctopusIntelligentSlotForecastSensor(
+                    hass,
+                    octopus_system,
+                    base_name,
+                    look_ahead_mins=minutes,
+                    device_id=device_id,
+                )
+            )
 
     async_add_entities(entities, False)
 
@@ -438,7 +452,9 @@ class OctopusIntelligentTargetReadyTimeSensor(
         return "mdi:clock-check"
 
 
-class OctopusIntelligentSlotForecastSensor(CoordinatorEntity, SensorEntity):
+class OctopusIntelligentSlotForecastSensor(
+    OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, SensorEntity
+):
     def __init__(
         self,
         hass,
@@ -446,14 +462,24 @@ class OctopusIntelligentSlotForecastSensor(CoordinatorEntity, SensorEntity):
         name: str,
         *,
         look_ahead_mins: int,
+        device_id: str | None = None,
     ) -> None:
         super().__init__(octopus_system)
         self._octopus_system = octopus_system
-        self._name = name
+        self._base_name = name
+        self._device_id = device_id
+        self._is_combined = device_id is None
         self._look_ahead_mins = look_ahead_mins
         base_unique_id = slugify(name)
-        self._unique_id = f"{base_unique_id}_sensor"
-        self._attributes: dict[str, Any] = {"look_ahead_minutes": look_ahead_mins}
+        self._unique_id = (
+            f"{base_unique_id}_sensor"
+            if self._is_combined
+            else f"{base_unique_id}_{slugify(device_id)}"
+        )
+        self._attributes: dict[str, Any] = {
+            "look_ahead_minutes": look_ahead_mins,
+            "device_id": device_id,
+        }
         self._native_value: str | None = None
         self._timer = async_track_utc_time_change(
             hass, self.timer_update, minute=range(0, 60, 30), second=1
@@ -491,7 +517,13 @@ class OctopusIntelligentSlotForecastSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def name(self):
-        return self._name
+        if self._is_combined:
+            return self._base_name
+        suffix = self._base_name
+        prefix = "Octopus Intelligent "
+        if suffix.startswith(prefix):
+            suffix = suffix[len(prefix):]
+        return f"{self._equipment_label()} {suffix}"
 
     @property
     def unique_id(self) -> str:
@@ -507,13 +539,18 @@ class OctopusIntelligentSlotForecastSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def device_info(self):
-        return {
-            "identifiers": {
-                ("AccountID", self._octopus_system.account_id),
-            },
-            "name": "Octopus Intelligent Tariff",
-            "manufacturer": "Octopus",
-        }
+        if self._is_combined:
+            return {
+                "identifiers": {
+                    ("AccountID", self._octopus_system.account_id),
+                },
+                "name": "Octopus Intelligent Tariff",
+                "manufacturer": "Octopus",
+            }
+
+        info = self._device_info()
+        info["via_device"] = ("AccountID", self._octopus_system.account_id)
+        return info
 
     @property
     def icon(self):

@@ -10,6 +10,7 @@ from homeassistant.const import (
     CONF_API_KEY,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from .const import(
     DOMAIN,
@@ -58,7 +59,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     hass.data[DOMAIN][entry.entry_id][OCTOPUS_SYSTEM] = octopus_system
 
-    await octopus_system.async_config_entry_first_refresh()        
+    await octopus_system.async_config_entry_first_refresh()
+
+    await _async_cleanup_legacy_controls(hass)
 
     #hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, lambda event: octopus_system.stop())
 
@@ -103,3 +106,23 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry):
         await octopus_system.async_remove_entry()
     except Exception as ex:  # pylint: disable=broad-exception-caught
         _LOGGER.error(ex)
+
+
+async def _async_cleanup_legacy_controls(hass: HomeAssistant) -> None:
+    """Remove legacy account-level control entities if they still exist."""
+    registry = er.async_get(hass)
+    legacy_unique_ids = {
+        "octopus_intelligent_bump_charge",
+        "octopus_intelligent_smart_charging",
+    }
+
+    to_remove: list[str] = []
+    for entity_id, entry in registry.entities.items():
+        if entry.platform != DOMAIN:
+            continue
+        if entry.unique_id in legacy_unique_ids:
+            to_remove.append(entity_id)
+
+    for entity_id in to_remove:
+        _LOGGER.debug("Removing legacy Octopus control entity %s", entity_id)
+        registry.async_remove(entity_id)

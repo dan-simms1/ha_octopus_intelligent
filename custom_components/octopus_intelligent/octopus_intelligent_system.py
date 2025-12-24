@@ -514,7 +514,10 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
                 if not next_start or start_utc < next_start:
                     next_start = start_utc
 
-        return next_start
+        if next_start:
+            return next_start
+
+        return self.next_offpeak_start_utc(device_id=device_id)
 
 
     def is_charging_now(
