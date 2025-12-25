@@ -224,5 +224,18 @@ async def _async_update_vehicle_device_icons(
             )
 
         current_icon = getattr(device_entry, "icon", None)
-        if device_entry and current_icon != "mdi:car-electric":
+        if not device_entry or current_icon == "mdi:car-electric":
+            continue
+
+        update_fn = getattr(registry, "async_update_device", None)
+        if not update_fn:
+            continue
+
+        accepts_icon = False
+        code_obj = getattr(update_fn, "__code__", None)
+        if code_obj:
+            varnames = code_obj.co_varnames[: code_obj.co_argcount]
+            accepts_icon = "icon" in varnames
+
+        if accepts_icon:
             registry.async_update_device(device_entry.id, icon="mdi:car-electric")
