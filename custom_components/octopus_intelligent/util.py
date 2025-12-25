@@ -82,7 +82,11 @@ def format_equipment_name(device: Mapping[str, Any] | None, fallback: str | None
         has_identifier_chars = any(ch.isdigit() or ch in {"_", "-"} for ch in value)
         return not has_lower and has_identifier_chars
 
-    _add_part(device.get("label"))
+    label_value = device.get("label")
+    if isinstance(label_value, str) and label_value.strip() and not _looks_like_identifier(label_value):
+        return label_value.strip()
+
+    _add_part(label_value)
 
     make = device.get("make") or device.get("vehicleMake") or device.get("chargePointMake")
     model = device.get("model") or device.get("vehicleModel") or device.get("chargePointModel")

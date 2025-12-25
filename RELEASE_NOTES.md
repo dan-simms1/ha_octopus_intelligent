@@ -11,3 +11,6 @@
 
 ## 2.0.19
 - Finalized the options dialog fix by aligning with Home Assistant’s internal flow handler expectations, preventing the remaining 500 error when opening Configure after 2.0.18.
+
+## 2.0.23
+- Device names now prefer the Octopus-provided label (when it isn’t an ID), preventing duplicated car names like `select.tesla_model_3_tesla_model_3_tesla_v2_target_state_of_charge` and keeping entity display names clean.
