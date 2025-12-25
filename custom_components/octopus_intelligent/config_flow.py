@@ -12,18 +12,6 @@ from homeassistant.const import (
     CONF_ID,
     CONF_API_KEY,
 )
-from homeassistant.helpers.selector import (
-    SelectSelector,
-    SelectSelectorConfig,
-)
-
-try:  # SelectSelectorOption is missing on older HA cores
-    from homeassistant.helpers.selector import SelectSelectorOption  # type: ignore
-    SELECTOR_OPTION_SUPPORTED = True
-except ImportError:  # pragma: no cover - compatibility shim
-    SelectSelectorOption = None  # type: ignore
-    SELECTOR_OPTION_SUPPORTED = False
-
 from .const import (
     DOMAIN,
     CONF_ACCOUNT_ID,
@@ -31,14 +19,12 @@ from .const import (
     CONF_OFFPEAK_START_DEFAULT,
     CONF_OFFPEAK_END,
     CONF_OFFPEAK_END_DEFAULT,
-    CONF_PRIMARY_EQUIPMENT_ID,
     CONF_POLL_INTERVAL,
     CONF_POLL_INTERVAL_DEFAULT,
     CONF_POLL_INTERVAL_MIN,
     INTELLIGENT_24HR_TIMES
 )
 from .graphql_util import InvalidAuthError, validate_octopus_account
-from .util import format_equipment_name, is_supported_equipment
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -119,8 +105,6 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_user(self, user_input=None):
         """Handle a flow initialized by the user."""
         errors = {}
-        api_key = self.config_entry.data.get(CONF_API_KEY, "")
-        account_id = self.config_entry.data.get(CONF_ACCOUNT_ID, "")
 
         form_values = {
             CONF_OFFPEAK_START: self.config_entry.options.get(
@@ -131,27 +115,13 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_OFFPEAK_END,
                 self.config_entry.data.get(CONF_OFFPEAK_END, CONF_OFFPEAK_END_DEFAULT),
             ),
-            CONF_PRIMARY_EQUIPMENT_ID: self.config_entry.options.get(
-                CONF_PRIMARY_EQUIPMENT_ID, ""
-            ),
             CONF_POLL_INTERVAL: self.config_entry.options.get(
                 CONF_POLL_INTERVAL, CONF_POLL_INTERVAL_DEFAULT
             ),
         }
 
-        device_selector_options = await self._async_build_device_selector_options(
-            api_key,
-            account_id,
-            suppress_errors=True,
-        )
-
         if user_input is not None:
             form_values.update(user_input)
-
-            primary_value = user_input.get(CONF_PRIMARY_EQUIPMENT_ID, "") or ""
-            valid_ids = {opt["value"] for opt in device_selector_options if opt.get("value")}
-            if device_selector_options and primary_value and primary_value not in valid_ids:
-                errors[CONF_PRIMARY_EQUIPMENT_ID] = "device_not_found"
 
             if not errors:
                 new_options = dict(self.config_entry.options)
@@ -161,10 +131,6 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_POLL_INTERVAL,
                     CONF_POLL_INTERVAL_DEFAULT,
                 )
-                if primary_value:
-                    new_options[CONF_PRIMARY_EQUIPMENT_ID] = primary_value
-                else:
-                    new_options.pop(CONF_PRIMARY_EQUIPMENT_ID, None)
 
                 self.hass.config_entries.async_update_entry(
                     self.config_entry,
@@ -190,89 +156,11 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
             vol.Range(min=CONF_POLL_INTERVAL_MIN, max=7200),
         )
 
-        if device_selector_options:
-            selector_field = self._build_device_selector_field(device_selector_options)
-            fields[vol.Optional(
-                CONF_PRIMARY_EQUIPMENT_ID,
-                default=form_values.get(CONF_PRIMARY_EQUIPMENT_ID, ""),
-            )] = selector_field
-
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(fields),
             errors=errors,
         )
-
-    def _build_device_selector_field(self, options: list[dict[str, str]]):
-        """Return a selector field or a simple fallback validator."""
-        if SELECTOR_OPTION_SUPPORTED and SelectSelectorOption is not None:
-            selector_options = [
-                SelectSelectorOption(value=opt["value"], label=opt.get("label"))
-                for opt in options
-            ]
-            return SelectSelector(
-                SelectSelectorConfig(
-                    options=selector_options,
-                    mode="dropdown",
-                )
-            )
-
-        allowed_values = [opt["value"] for opt in options]
-        return vol.In(allowed_values)
-
-    async def _async_build_device_selector_options(
-        self,
-        api_key: str,
-        account_id: str,
-        preset_devices=None,
-        suppress_errors: bool = False,
-    ) -> list[dict[str, str]]:
-        if not api_key or not account_id:
-            return []
-
-        devices = preset_devices
-        if devices is None:
-            try:
-                client = await try_connection(api_key, account_id)
-                devices = await client.async_get_devices(account_id)
-            except InvalidAuthError as ex:
-                if suppress_errors:
-                    _LOGGER.debug(
-                        "Skipping device selector options because credentials are invalid: %s",
-                        ex,
-                    )
-                    return []
-                raise
-            except Exception as ex:  # pylint: disable=broad-except
-                if suppress_errors:
-                    _LOGGER.debug(
-                        "Failed to load Octopus Intelligent equipment list: %s",
-                        ex,
-                    )
-                    return []
-                raise
-
-        options: list[dict[str, str]] = []
-        for device in devices or []:
-            device_id = device.get("id")
-            if not device_id:
-                continue
-            if not is_supported_equipment(device):
-                continue
-            label = format_equipment_name(device, fallback="Unknown equipment")
-            options.append({"value": device_id, "label": label})
-
-        if not options:
-            return []
-
-        default_option = {
-            "value": "",
-            "label": "Auto (use first detected device)",
-        }
-        return [
-            default_option,
-            *sorted(options, key=lambda opt: (opt.get("label") or opt["value"])),
-        ]
 
 
 async def try_connection(api_key: str, account_id: str):
