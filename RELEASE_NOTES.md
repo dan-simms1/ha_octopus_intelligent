@@ -14,3 +14,5 @@
 
 ## 2.0.23
 - Device names now prefer the Octopus-provided label (when it isn’t an ID), preventing duplicated car names like `select.tesla_model_3_tesla_model_3_tesla_v2_target_state_of_charge` and keeping entity display names clean.
+- Timestamp sensors (`Next Offpeak Start`, `Offpeak End`, `Intelligent Charging Start`) now publish their values immediately after the coordinator loads, so they no longer sit at `unknown` after a reload when data is already available.
+- Per-car Planned Dispatch Slot sensors once again expose the raw `planned_dispatches` / `completed_dispatches` attributes for dashboards and automations.

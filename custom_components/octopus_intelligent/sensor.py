@@ -155,6 +155,10 @@ class OctopusIntelligentNextOffpeakTime(
     async def async_will_remove_from_hass(self):
         self._timer()
 
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._handle_coordinator_update()
+
 
 class OctopusIntelligentOffpeakEndTime(
     OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, SensorEntity
@@ -247,6 +251,10 @@ class OctopusIntelligentOffpeakEndTime(
     async def async_will_remove_from_hass(self):
         self._timer()
 
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._handle_coordinator_update()
+
 
 class OctopusIntelligentChargingStartSensor(
     OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, SensorEntity
@@ -336,6 +344,10 @@ class OctopusIntelligentChargingStartSensor(
 
     async def async_will_remove_from_hass(self):
         self._timer()
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        self._handle_coordinator_update()
 
 
 class OctopusIntelligentTargetReadyTimeSensor(
