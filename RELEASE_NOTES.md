@@ -5,3 +5,6 @@
 - Normalised GraphQL dispatch `type` values (e.g. `SMART`, `BOOST`) to the canonical `smart-charge` / `bump-charge` sources so the combined charging-start sensor reports the first true dispatch instead of defaulting to 23:30.
 - Introduced configurable off-peak start/end times inside the integration options flow, eliminating the need to re-run setup when Octopus changes your tariff window.
 - Fixed the options flow so the Configure dialog opens reliably and added documentation pointing users to the new settings.
+
+## 2.0.18
+- Options dialog now instantiates cleanly via Home Assistant’s `OptionsFlow` base class, fixing the lingering 500 error when opening Configure and ensuring the new polling/off-peak settings are always accessible.
