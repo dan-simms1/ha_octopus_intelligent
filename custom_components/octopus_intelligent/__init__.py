@@ -10,7 +10,7 @@ from homeassistant.const import (
     CONF_API_KEY,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, device_registry as dr
 
 from .const import(
     DOMAIN,
@@ -20,6 +20,7 @@ from .const import(
     CONF_OFFPEAK_START,
     CONF_OFFPEAK_END,
     CONF_PRIMARY_EQUIPMENT_ID,
+    UNSUPPORTED_DEVICE_PROVIDERS,
 )
 from .util import to_timedelta
 
@@ -62,6 +63,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     await octopus_system.async_config_entry_first_refresh()
 
     await _async_cleanup_legacy_controls(hass)
+    await _async_remove_unsupported_devices(hass)
 
     #hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, lambda event: octopus_system.stop())
 
@@ -114,6 +116,8 @@ async def _async_cleanup_legacy_controls(hass: HomeAssistant) -> None:
     legacy_unique_ids = {
         "octopus_intelligent_bump_charge",
         "octopus_intelligent_smart_charging",
+        "octopus_intelligent_target_soc",
+        "octopus_intelligent_target_time",
     }
 
     to_remove: list[str] = []
@@ -126,3 +130,48 @@ async def _async_cleanup_legacy_controls(hass: HomeAssistant) -> None:
     for entity_id in to_remove:
         _LOGGER.debug("Removing legacy Octopus control entity %s", entity_id)
         registry.async_remove(entity_id)
+
+
+def _normalize_identifier(value: str | None) -> str:
+    if not isinstance(value, str):
+        return ""
+    uppercase = value.upper()
+    normalized = [
+        ch
+        for ch in uppercase
+        if ch.isalnum()
+    ]
+    return "".join(normalized)
+
+
+async def _async_remove_unsupported_devices(hass: HomeAssistant) -> None:
+    """Remove old device entries such as OCTOPUS_ENERGY meters."""
+    registry = dr.async_get(hass)
+    provider_tokens = {
+        _normalize_identifier(provider)
+        for provider in UNSUPPORTED_DEVICE_PROVIDERS
+    }
+
+    to_remove: list[str] = []
+    for device in list(registry.devices.values()):
+        identifiers = device.identifiers or set()
+        if not any(domain == DOMAIN for domain, _ in identifiers):
+            continue
+
+        candidates = {
+            _normalize_identifier(device.name),
+            _normalize_identifier(device.manufacturer),
+            _normalize_identifier(device.model),
+        }
+        for _, identifier in identifiers:
+            candidates.add(_normalize_identifier(identifier))
+
+        if any(token and token in provider_tokens for token in candidates):
+            to_remove.append(device.id)
+
+    for device_id in to_remove:
+        _LOGGER.debug(
+            "Removing unsupported Octopus device entry %s from device registry",
+            device_id,
+        )
+        registry.async_remove_device(device_id)

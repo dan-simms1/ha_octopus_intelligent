@@ -108,16 +108,17 @@ class OctopusIntelligentTargetSoc(
         self.async_write_ha_state()
 
     def _refresh_current_option(self) -> None:
-        summary = self._octopus_system.get_ready_time_summary(self._device_id)
-        device_entry = summary.first_target()
-        if not device_entry:
-            self._current_option = None
-            return
+        state = self._octopus_system.get_device_state(self._device_id) or {}
+        preferences = (state.get("preferences") or {})
+        active_key = self._octopus_system.get_active_target_key()
 
-        if summary.mode == "weekend":
-            target_soc = device_entry.weekend_target_soc or device_entry.weekday_target_soc
+        weekday_soc = preferences.get("weekdayTargetSoc")
+        weekend_soc = preferences.get("weekendTargetSoc")
+
+        if active_key == "weekendTargetTime":
+            target_soc = weekend_soc if weekend_soc is not None else weekday_soc
         else:
-            target_soc = device_entry.weekday_target_soc or device_entry.weekend_target_soc
+            target_soc = weekday_soc if weekday_soc is not None else weekend_soc
 
         self._current_option = f"{target_soc}" if target_soc is not None else None
 
@@ -183,18 +184,22 @@ class OctopusIntelligentTargetTime(
         self.async_write_ha_state()
 
     def _refresh_current_option(self) -> None:
-        summary = self._octopus_system.get_ready_time_summary(self._device_id)
-        if summary.active_target_time:
-            self._current_option = summary.active_target_time
+        state = self._octopus_system.get_device_state(self._device_id) or {}
+        preferences = (state.get("preferences") or {})
+        active_key = self._octopus_system.get_active_target_key()
+
+        active_time = preferences.get(active_key)
+        if active_time:
+            self._current_option = active_time
             return
 
-        device_entry = summary.first_target()
-        if device_entry:
-            if summary.mode == "weekend":
-                fallback = device_entry.weekend_target_time or device_entry.weekday_target_time
-            else:
-                fallback = device_entry.weekday_target_time or device_entry.weekend_target_time
-            self._current_option = fallback
+        weekday_time = preferences.get("weekdayTargetTime")
+        weekend_time = preferences.get("weekendTargetTime")
+
+        if active_key == "weekendTargetTime":
+            fallback = weekend_time or weekday_time
         else:
-            self._current_option = None
+            fallback = weekday_time or weekend_time
+
+        self._current_option = fallback
 

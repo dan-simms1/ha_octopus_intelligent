@@ -60,6 +60,16 @@ def format_equipment_name(device: Mapping[str, Any] | None, fallback: str | None
         seen.add(normalized)
         parts.append(trimmed)
 
+    def _looks_like_identifier(raw_value: str | None) -> bool:
+        if not isinstance(raw_value, str):
+            return False
+        value = raw_value.strip()
+        if not value:
+            return False
+        has_lower = any(ch.islower() for ch in value)
+        has_identifier_chars = any(ch.isdigit() or ch in {"_", "-"} for ch in value)
+        return not has_lower and has_identifier_chars
+
     _add_part(device.get("label"))
 
     make = device.get("make") or device.get("vehicleMake") or device.get("chargePointMake")
@@ -67,7 +77,9 @@ def format_equipment_name(device: Mapping[str, Any] | None, fallback: str | None
     name = " ".join(part for part in [make, model] if isinstance(part, str) and part.strip())
     _add_part(name if name else None)
 
-    _add_part(device.get("provider"))
+    provider_value = device.get("provider")
+    if not _looks_like_identifier(provider_value):
+        _add_part(provider_value)
 
     if parts:
         return " - ".join(parts)
