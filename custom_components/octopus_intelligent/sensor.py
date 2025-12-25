@@ -7,6 +7,7 @@ from homeassistant.components.sensor import (
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
 )
+from homeassistant.const import PERCENTAGE
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import (
     async_track_utc_time_change
@@ -53,6 +54,12 @@ async def async_setup_entry(
         )
         entities.append(
             OctopusIntelligentTargetReadyTimeSensor(
+                octopus_system,
+                device_id=device_id,
+            )
+        )
+        entities.append(
+            OctopusIntelligentTargetSocSensor(
                 octopus_system,
                 device_id=device_id,
             )
@@ -416,5 +423,71 @@ class OctopusIntelligentTargetReadyTimeSensor(
     @property
     def icon(self):
         return "mdi:clock-check"
+
+
+class OctopusIntelligentTargetSocSensor(
+    OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, SensorEntity
+):
+    def __init__(
+        self,
+        octopus_system,
+        *,
+        device_id: str,
+    ) -> None:
+        super().__init__(octopus_system)
+        self._octopus_system = octopus_system
+        self._device_id = device_id
+        base_unique_id = "octopus_intelligent_target_soc_state"
+        self._unique_id = f"{base_unique_id}_{slugify(device_id)}"
+        self._native_value: int | None = None
+        self._attributes: dict[str, Any] = {}
+        self._set_native_value()
+
+    def _select_target_soc(self, summary_mode: str, entry: Any | None) -> int | None:
+        if not entry:
+            return None
+        if summary_mode == "weekend":
+            return entry.weekend_target_soc or entry.weekday_target_soc
+        return entry.weekday_target_soc or entry.weekend_target_soc
+
+    def _set_native_value(self) -> None:
+        summary = self._octopus_system.get_ready_time_summary(self._device_id)
+        device_entry = summary.first_target()
+        self._native_value = self._select_target_soc(summary.mode, device_entry)
+        if device_entry:
+            self._attributes = device_entry.as_device_attributes(summary.mode)
+        else:
+            self._attributes = {"mode": summary.mode}
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        previous = self._native_value
+        self._set_native_value()
+        if self._native_value != previous:
+            self.async_write_ha_state()
+
+    @property
+    def name(self):
+        return f"{self._equipment_label()} Target State of Charge"
+
+    @property
+    def unique_id(self) -> str:
+        return self._unique_id
+
+    @property
+    def native_value(self):
+        return self._native_value
+
+    @property
+    def extra_state_attributes(self):
+        return self._attributes
+
+    @property
+    def native_unit_of_measurement(self):
+        return PERCENTAGE
+
+    @property
+    def icon(self):
+        return "mdi:battery-check-outline"
 
 
