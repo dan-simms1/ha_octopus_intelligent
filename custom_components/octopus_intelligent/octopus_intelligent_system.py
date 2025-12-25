@@ -455,6 +455,7 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
 
         targeted_dispatches: list[dict[str, Any]] = []
         combined_dispatches: list[dict[str, Any]] = []
+        supported_devices = set(self.get_supported_device_ids())
 
         for state in (self.data or {}).get('plannedDispatches', []):
             if state.get('meta', {}).get('source', '') != 'smart-charge':
@@ -472,7 +473,11 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
                 if meta_device == device_id:
                     targeted_dispatches.append(entry)
             else:
-                if meta_device and not self.is_smart_charging_enabled(meta_device):
+                if (
+                    meta_device
+                    and meta_device in supported_devices
+                    and not self.is_smart_charging_enabled(meta_device)
+                ):
                     continue
                 combined_dispatches.append(entry)
 
