@@ -499,6 +499,10 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
                 combined_dispatches.append(entry)
 
         if device_id:
+            # Drop stale dispatches so per-device sensors fall back to the base window
+            targeted_dispatches = [
+                entry for entry in targeted_dispatches if entry["end"] >= utcnow
+            ]
             candidate_ranges = targeted_dispatches or base_offpeak_ranges
         else:
             candidate_ranges = [*base_offpeak_ranges, *combined_dispatches]
