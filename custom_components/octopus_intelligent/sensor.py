@@ -34,6 +34,7 @@ async def async_setup_entry(
     entities: list[SensorEntity] = [
         OctopusIntelligentNextOffpeakTime(hass, octopus_system),
         OctopusIntelligentOffpeakEndTime(hass, octopus_system),
+        OctopusIntelligentChargingStartSensor(hass, octopus_system),
     ]
 
     for device_id in device_ids:
