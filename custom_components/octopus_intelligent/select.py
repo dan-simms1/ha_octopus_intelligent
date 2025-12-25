@@ -108,19 +108,36 @@ class OctopusIntelligentTargetSoc(
         self.async_write_ha_state()
 
     def _refresh_current_option(self) -> None:
-        state = self._octopus_system.get_device_state(self._device_id) or {}
-        preferences = (state.get("preferences") or {})
-        active_key = self._octopus_system.get_active_target_key()
+        summary = self._octopus_system.get_ready_time_summary(self._device_id)
+        device_entry = summary.first_target()
+        target_soc: int | None = None
 
-        weekday_soc = preferences.get("weekdayTargetSoc")
-        weekend_soc = preferences.get("weekendTargetSoc")
+        if device_entry:
+            if summary.mode == "weekend":
+                target_soc = (
+                    device_entry.weekend_target_soc
+                    if device_entry.weekend_target_soc is not None
+                    else device_entry.weekday_target_soc
+                )
+            else:
+                target_soc = (
+                    device_entry.weekday_target_soc
+                    if device_entry.weekday_target_soc is not None
+                    else device_entry.weekend_target_soc
+                )
 
-        if active_key == "weekendTargetTime":
-            target_soc = weekend_soc if weekend_soc is not None else weekday_soc
+        if target_soc is None:
+            state = self._octopus_system.get_device_state(self._device_id) or {}
+            preferences = (state.get("preferences") or {})
+            target_soc = preferences.get("weekdayTargetSoc") or preferences.get("weekendTargetSoc")
+
+        if target_soc is not None:
+            option_value = f"{target_soc}"
+            if option_value not in self._options:
+                self._options.append(option_value)
+            self._current_option = option_value
         else:
-            target_soc = weekday_soc if weekday_soc is not None else weekend_soc
-
-        self._current_option = f"{target_soc}" if target_soc is not None else None
+            self._current_option = None
 
 
 class OctopusIntelligentTargetTime(
@@ -184,22 +201,35 @@ class OctopusIntelligentTargetTime(
         self.async_write_ha_state()
 
     def _refresh_current_option(self) -> None:
-        state = self._octopus_system.get_device_state(self._device_id) or {}
-        preferences = (state.get("preferences") or {})
-        active_key = self._octopus_system.get_active_target_key()
+        summary = self._octopus_system.get_ready_time_summary(self._device_id)
+        target_time: str | None = summary.active_target_time
 
-        active_time = preferences.get(active_key)
-        if active_time:
-            self._current_option = active_time
-            return
+        if not target_time:
+            device_entry = summary.first_target()
+            if device_entry:
+                if summary.mode == "weekend":
+                    target_time = (
+                        device_entry.weekend_target_time
+                        or device_entry.weekday_target_time
+                    )
+                else:
+                    target_time = (
+                        device_entry.weekday_target_time
+                        or device_entry.weekend_target_time
+                    )
 
-        weekday_time = preferences.get("weekdayTargetTime")
-        weekend_time = preferences.get("weekendTargetTime")
+        if not target_time:
+            state = self._octopus_system.get_device_state(self._device_id) or {}
+            preferences = (state.get("preferences") or {})
+            target_key = self._octopus_system.get_active_target_key()
+            target_time = (
+                preferences.get(target_key)
+                or preferences.get("weekdayTargetTime")
+                or preferences.get("weekendTargetTime")
+            )
 
-        if active_key == "weekendTargetTime":
-            fallback = weekend_time or weekday_time
-        else:
-            fallback = weekday_time or weekend_time
+        if target_time and target_time not in self._options:
+            self._options.append(target_time)
 
-        self._current_option = fallback
+        self._current_option = target_time
 

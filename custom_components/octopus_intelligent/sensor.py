@@ -320,7 +320,9 @@ class OctopusIntelligentChargingStartSensor(
 
     @property
     def name(self):
-        return self._prefixed_name("Intelligent Charging Start")
+        if self._is_combined:
+            return "Octopus Intelligent Charging Start"
+        return "Intelligent Charging Start"
 
     @property
     def unique_id(self) -> str:
@@ -351,7 +353,7 @@ class OctopusIntelligentChargingStartSensor(
 
     @property
     def icon(self):
-        return "mdi:flash-clock"
+        return "mdi:clock-start"
 
     async def async_will_remove_from_hass(self):
         self._timer()
@@ -545,7 +547,7 @@ class OctopusIntelligentSlotForecastSensor(
                 "identifiers": {
                     ("AccountID", self._octopus_system.account_id),
                 },
-                "name": "Octopus Intelligent Tariff",
+                "name": "Combined Sensors",
                 "manufacturer": "Octopus",
             }
 
