@@ -108,6 +108,10 @@ class OctopusIntelligentConfigFlowHandler(config_entries.ConfigFlow, domain=DOMA
 class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
     """Handle options flow for Octopus Intelligent integration."""
 
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Store the config entry being edited."""
+        self.config_entry = config_entry
+
     async def async_step_init(self, user_input=None):
         """Manage the options."""
         return await self.async_step_user()
@@ -115,16 +119,17 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
     async def async_step_user(self, user_input=None):
         """Handle a flow initialized by the user."""
         errors = {}
-        devices = None
+        api_key = self.config_entry.data.get(CONF_API_KEY, "")
+        account_id = self.config_entry.data.get(CONF_ACCOUNT_ID, "")
 
         form_values = {
-            CONF_API_KEY: self.config_entry.data.get(CONF_API_KEY, ""),
-            CONF_ACCOUNT_ID: self.config_entry.data.get(CONF_ACCOUNT_ID, ""),
-            CONF_OFFPEAK_START: self.config_entry.data.get(
-                CONF_OFFPEAK_START, CONF_OFFPEAK_START_DEFAULT
+            CONF_OFFPEAK_START: self.config_entry.options.get(
+                CONF_OFFPEAK_START,
+                self.config_entry.data.get(CONF_OFFPEAK_START, CONF_OFFPEAK_START_DEFAULT),
             ),
-            CONF_OFFPEAK_END: self.config_entry.data.get(
-                CONF_OFFPEAK_END, CONF_OFFPEAK_END_DEFAULT
+            CONF_OFFPEAK_END: self.config_entry.options.get(
+                CONF_OFFPEAK_END,
+                self.config_entry.data.get(CONF_OFFPEAK_END, CONF_OFFPEAK_END_DEFAULT),
             ),
             CONF_PRIMARY_EQUIPMENT_ID: self.config_entry.options.get(
                 CONF_PRIMARY_EQUIPMENT_ID, ""
@@ -134,61 +139,41 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
             ),
         }
 
+        device_selector_options = await self._async_build_device_selector_options(
+            api_key,
+            account_id,
+            suppress_errors=True,
+        )
+
         if user_input is not None:
             form_values.update(user_input)
 
-            try:
-                client = await try_connection(
-                    user_input[CONF_API_KEY], user_input[CONF_ACCOUNT_ID]
+            primary_value = user_input.get(CONF_PRIMARY_EQUIPMENT_ID, "") or ""
+            valid_ids = {opt["value"] for opt in device_selector_options if opt.get("value")}
+            if device_selector_options and primary_value and primary_value not in valid_ids:
+                errors[CONF_PRIMARY_EQUIPMENT_ID] = "device_not_found"
+
+            if not errors:
+                new_options = dict(self.config_entry.options)
+                new_options[CONF_OFFPEAK_START] = user_input[CONF_OFFPEAK_START]
+                new_options[CONF_OFFPEAK_END] = user_input[CONF_OFFPEAK_END]
+                new_options[CONF_POLL_INTERVAL] = user_input.get(
+                    CONF_POLL_INTERVAL,
+                    CONF_POLL_INTERVAL_DEFAULT,
                 )
-                devices = await client.async_get_devices(user_input[CONF_ACCOUNT_ID])
-            except InvalidAuthError as ex:
-                _LOGGER.warning("Invalid Octopus credentials provided: %s", ex)
-                errors["base"] = "invalid_auth"
-            except Exception as ex:  # pylint: disable=broad-except
-                _LOGGER.error("Unable to validate Octopus credentials: %s", ex)
-                errors["base"] = "unknown"
-            else:
-                primary_value = user_input.get(CONF_PRIMARY_EQUIPMENT_ID, "") or ""
-                valid_ids = {device.get("id") for device in devices or [] if device.get("id")}
-                if primary_value and primary_value not in valid_ids:
-                    errors[CONF_PRIMARY_EQUIPMENT_ID] = "device_not_found"
+                if primary_value:
+                    new_options[CONF_PRIMARY_EQUIPMENT_ID] = primary_value
+                else:
+                    new_options.pop(CONF_PRIMARY_EQUIPMENT_ID, None)
 
-                if not errors:
-                    new_data = {
-                        CONF_ID: self.config_entry.data.get(CONF_ID),
-                        CONF_API_KEY: user_input[CONF_API_KEY],
-                        CONF_ACCOUNT_ID: user_input[CONF_ACCOUNT_ID],
-                        CONF_OFFPEAK_START: user_input[CONF_OFFPEAK_START],
-                        CONF_OFFPEAK_END: user_input[CONF_OFFPEAK_END],
-                    }
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry,
+                    options=new_options,
+                )
 
-                    new_options = dict(self.config_entry.options)
-                    if primary_value:
-                        new_options[CONF_PRIMARY_EQUIPMENT_ID] = primary_value
-                    else:
-                        new_options.pop(CONF_PRIMARY_EQUIPMENT_ID, None)
-                    new_options[CONF_POLL_INTERVAL] = user_input.get(
-                        CONF_POLL_INTERVAL,
-                        CONF_POLL_INTERVAL_DEFAULT,
-                    )
-
-                    self.hass.config_entries.async_update_entry(
-                        self.config_entry, data=new_data, options=new_options
-                    )
-
-                    return self.async_create_entry(title="", data={})
-
-        device_selector_options = await self._async_build_device_selector_options(
-            form_values[CONF_API_KEY],
-            form_values[CONF_ACCOUNT_ID],
-            preset_devices=devices,
-            suppress_errors=user_input is None,
-        )
+                return self.async_create_entry(title="", data={})
 
         fields = OrderedDict()
-        fields[vol.Required(CONF_API_KEY, default=form_values[CONF_API_KEY])] = str
-        fields[vol.Required(CONF_ACCOUNT_ID, default=form_values[CONF_ACCOUNT_ID])] = str
         fields[vol.Required(
             CONF_OFFPEAK_START,
             default=form_values[CONF_OFFPEAK_START],

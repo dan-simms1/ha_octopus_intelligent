@@ -280,12 +280,15 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
     ) -> list[dict[str, Any]]:
         normalised: list[dict[str, Any]] = []
         for dispatch in dispatches or []:
+            meta_source = self._translate_dispatch_source(
+                dispatch.get("type") or dispatch.get("meta", {}).get("source")
+            )
             entry = {
                 "chargeKwh": self._format_energy(dispatch.get("energyAddedKwh")),
                 "startDtUtc": self._format_dispatch_time(dispatch.get("start")),
                 "endDtUtc": self._format_dispatch_time(dispatch.get("end")),
                 "meta": {
-                    "source": dispatch.get("type") or dispatch.get("meta", {}).get("source"),
+                    "source": meta_source,
                     "location": dispatch.get("meta", {}).get("location"),
                     "deviceId": device_id,
                 },
@@ -373,6 +376,20 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
         if value is None:
             return None
         return f"{value}"
+
+    @staticmethod
+    def _translate_dispatch_source(value: Any) -> str | None:
+        if not value:
+            return None
+        normalized = str(value).strip().lower()
+        if not normalized:
+            return None
+
+        if normalized in {"smart", "smart-charge"}:
+            return "smart-charge"
+        if normalized in {"boost", "bump", "boost-charge", "bump-charge"}:
+            return "bump-charge"
+        return normalized
 
     def is_smart_charging_enabled(self, device_id: str | None = None):
         device_state = self._get_device_state(device_id)

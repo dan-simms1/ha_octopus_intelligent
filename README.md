@@ -9,10 +9,14 @@ Octopus Intelligent Home Assistant integration
 * `binary_sensor.octopus_intelligent_slot_next_2_hours` - will be `on` when your electricity is cheap for the next 2 hours.
 * `binary_sensor.octopus_intelligent_slot_next_3_hours` - will be `on` when your electricity is cheap for the next 3 hours.
 
+Every supported vehicle exposes the same family of slot sensors, e.g. `binary_sensor.tesla_model_3_slot`, `binary_sensor.tesla_model_3_slot_next_1_hour` and `binary_sensor.tesla_model_3_planned_dispatch_slot`.  These per-car entities only report `on` when Octopus has actually scheduled dispatches for that specific vehicle, and their attributes include the raw `planned_dispatches`/`completed_dispatches` payloads so automations can inspect the exact schedule that Octopus published.
+
 * `sensor.octopus_intelligent_next_offpeak_start` - will display the timestamp (UTC) of the next expected offpeak period start time.
 * `sensor.octopus_intelligent_offpeak_end` - will display the timestamp (UTC) of the expected end of current offpeak period (will remain so during the following peak period until a new offpeak period starts)
 
 NOTE: It has come to my attention that, when outside core offpeak hours (2330 -> 0530), if your car does not successfully charge during the planned slots then your usage will be billed at peak pricing.  This means that if charging is unreliable then the sensor won't reflect your billing accurately.
+
+Need to adjust your cheap-rate window? Open Home Assistant → Settings → Devices & Services → Octopus Intelligent Tariff → Configure to set the off-peak start and end times without re-running the full setup.
 
 * `switch.octopus_intelligent_bump_charge` and `switch.octopus_intelligent_smart_charging` - controls your Octopus Intelligent bump charge and smart charge settings
 

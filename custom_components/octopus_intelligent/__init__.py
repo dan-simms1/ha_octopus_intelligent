@@ -19,6 +19,8 @@ from .const import(
     CONF_ACCOUNT_ID,
     CONF_OFFPEAK_START,
     CONF_OFFPEAK_END,
+    CONF_OFFPEAK_START_DEFAULT,
+    CONF_OFFPEAK_END_DEFAULT,
     CONF_PRIMARY_EQUIPMENT_ID,
     CONF_POLL_INTERVAL,
     CONF_POLL_INTERVAL_DEFAULT,
@@ -50,12 +52,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     if poll_interval < 1:
         poll_interval = CONF_POLL_INTERVAL_DEFAULT
 
+    off_peak_start_str = entry.options.get(
+        CONF_OFFPEAK_START,
+        entry.data.get(CONF_OFFPEAK_START),
+    ) or CONF_OFFPEAK_START_DEFAULT
+    off_peak_end_str = entry.options.get(
+        CONF_OFFPEAK_END,
+        entry.data.get(CONF_OFFPEAK_END),
+    ) or CONF_OFFPEAK_END_DEFAULT
+
     octopus_system = OctopusIntelligentSystem(
         hass,
         api_key=entry.data[CONF_API_KEY],
         account_id=entry.data[CONF_ACCOUNT_ID],
-        off_peak_start=to_timedelta(entry.data[CONF_OFFPEAK_START]),
-        off_peak_end=to_timedelta(entry.data[CONF_OFFPEAK_END]),
+        off_peak_start=to_timedelta(off_peak_start_str),
+        off_peak_end=to_timedelta(off_peak_end_str),
         primary_equipment_id=entry.options.get(CONF_PRIMARY_EQUIPMENT_ID),
         update_interval_seconds=poll_interval,
     )
