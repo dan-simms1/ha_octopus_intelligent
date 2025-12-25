@@ -34,8 +34,6 @@ async def async_setup_entry(
     entities: list[SensorEntity] = [
         OctopusIntelligentNextOffpeakTime(hass, octopus_system),
         OctopusIntelligentOffpeakEndTime(hass, octopus_system),
-        OctopusIntelligentChargingStartSensor(hass, octopus_system),
-        OctopusIntelligentTargetReadyTimeSensor(octopus_system),
     ]
 
     for device_id in device_ids:
@@ -58,33 +56,6 @@ async def async_setup_entry(
                 device_id=device_id,
             )
         )
-
-    slot_windows = [
-        ("Octopus Intelligent Slot Next 1 Hour", 60),
-        ("Octopus Intelligent Slot Next 2 Hours", 120),
-        ("Octopus Intelligent Slot Next 3 Hours", 180),
-    ]
-    for name, minutes in slot_windows:
-        entities.append(
-            OctopusIntelligentSlotForecastSensor(
-                hass,
-                octopus_system,
-                name,
-                look_ahead_mins=minutes,
-            )
-        )
-
-    for device_id in device_ids:
-        for base_name, minutes in slot_windows:
-            entities.append(
-                OctopusIntelligentSlotForecastSensor(
-                    hass,
-                    octopus_system,
-                    base_name,
-                    look_ahead_mins=minutes,
-                    device_id=device_id,
-                )
-            )
 
     async_add_entities(entities, False)
 
@@ -445,120 +416,4 @@ class OctopusIntelligentTargetReadyTimeSensor(
     def icon(self):
         return "mdi:clock-check"
 
-
-class OctopusIntelligentSlotForecastSensor(
-    OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, SensorEntity
-):
-    def __init__(
-        self,
-        hass,
-        octopus_system,
-        name: str,
-        *,
-        look_ahead_mins: int,
-        device_id: str | None = None,
-    ) -> None:
-        super().__init__(octopus_system)
-        self._octopus_system = octopus_system
-        self._base_name = name
-        self._device_id = device_id
-        self._is_combined = device_id is None
-        self._look_ahead_mins = look_ahead_mins
-        base_unique_id = slugify(name)
-        self._unique_id = (
-            f"{base_unique_id}_sensor"
-            if self._is_combined
-            else f"{base_unique_id}_{slugify(device_id)}"
-        )
-        self._attributes: dict[str, Any] = {
-            "look_ahead_minutes": look_ahead_mins,
-            "device_id": device_id,
-            "scope": "account" if device_id is None else "device",
-        }
-        self._native_value: str | None = None
-        self._timer = async_track_utc_time_change(
-            hass, self.timer_update, minute=range(0, 60, 30), second=1
-        )
-        self._update_native_value(log_on_error=False)
-
-    def _slot_suffix(self) -> str:
-        base_name = self._base_name or ""
-        prefix = "Octopus Intelligent "
-        if base_name.startswith(prefix):
-            return base_name[len(prefix):]
-        return base_name
-
-    def _has_continuous_offpeak(self) -> bool:
-        mins_looked = 0
-        while mins_looked <= self._look_ahead_mins:
-            if self._is_combined:
-                available = self._octopus_system.is_off_peak_now(mins_looked)
-            else:
-                available = self._octopus_system.is_device_off_peak_now(
-                    self._device_id,
-                    mins_looked,
-                )
-            if not available:
-                return False
-            mins_looked += 30
-        return True
-
-    def _update_native_value(self, log_on_error: bool = True) -> bool:
-        try:
-            self._native_value = (
-                "available" if self._has_continuous_offpeak() else "unavailable"
-            )
-            return True
-        except Exception:  # pylint: disable=broad-except
-            if log_on_error:
-                _LOGGER.exception("Could not calculate slot availability")
-        return False
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        if self._update_native_value():
-            self.async_write_ha_state()
-
-    @callback
-    async def timer_update(self, time):
-        if self._update_native_value():
-            self.async_write_ha_state()
-
-    @property
-    def name(self):
-        return self._prefixed_name(self._slot_suffix())
-
-    @property
-    def unique_id(self) -> str:
-        return self._unique_id
-
-    @property
-    def native_value(self):
-        return self._native_value
-
-    @property
-    def extra_state_attributes(self):
-        return self._attributes
-
-    @property
-    def device_info(self):
-        if self._is_combined:
-            return {
-                "identifiers": {
-                    ("AccountID", self._octopus_system.account_id),
-                },
-                "name": "Combined Sensors",
-                "manufacturer": "Octopus",
-            }
-
-        info = self._device_info()
-        info["via_device"] = ("AccountID", self._octopus_system.account_id)
-        return info
-
-    @property
-    def icon(self):
-        return "mdi:timeline-clock"
-
-    async def async_will_remove_from_hass(self):
-        self._timer()
 
