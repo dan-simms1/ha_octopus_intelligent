@@ -235,21 +235,27 @@ class OctopusIntelligentPlannedDispatchSlot(
         self.async_write_ha_state()
 
     def _update_state(self):
-        self._is_on = self._octopus_system.is_off_peak_charging_now(
-            device_id=self._device_id
-        )
-        self._attributes = self._build_attributes()
+        planned = self._get_planned_dispatches()
+        self._is_on = bool(planned)
+        self._attributes = self._build_attributes(planned)
 
-    def _build_attributes(self):
+    def _get_planned_dispatches(self):
+        if self._is_combined:
+            data = self.coordinator.data or {}
+            return data.get("plannedDispatches", [])
+        device_state = self._octopus_system.get_device_state(self._device_id) or {}
+        return device_state.get("plannedDispatches", [])
+
+    def _build_attributes(self, planned_dispatches):
         if self._is_combined:
             data = self.coordinator.data or {}
             return {
-                "planned_dispatches": data.get("plannedDispatches", []),
+                "planned_dispatches": planned_dispatches,
                 "completed_dispatches": data.get("completedDispatches", []),
             }
         device_state = self._octopus_system.get_device_state(self._device_id) or {}
         return {
-            "planned_dispatches": device_state.get("plannedDispatches", []),
+            "planned_dispatches": planned_dispatches,
             "completed_dispatches": device_state.get("completedDispatches", []),
             "status": device_state.get("status", {}),
         }

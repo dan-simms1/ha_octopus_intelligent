@@ -132,12 +132,7 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
                     CONF_POLL_INTERVAL_DEFAULT,
                 )
 
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    options=new_options,
-                )
-
-                return self.async_create_entry(title="", data={})
+                return self.async_create_entry(title="", data=new_options)
 
         fields = OrderedDict()
         fields[vol.Required(
