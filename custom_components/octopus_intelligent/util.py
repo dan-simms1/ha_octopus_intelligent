@@ -22,6 +22,18 @@ def to_hours_after_midnight(str_time: str) -> float:
     td = to_timedelta(str_time)
     return td.seconds / 3600
 
+def normalize_time_string(value: str | None) -> str | None:
+    """Return HH:MM even if API provides HH:MM:SS."""
+    if not isinstance(value, str):
+        return None
+    trimmed = value.strip()
+    if not trimmed:
+        return None
+    parts = trimmed.split(":")
+    if len(parts) == 3 and parts[2] == "00":
+        return f"{parts[0]}:{parts[1]}"
+    return trimmed
+
 
 def merge_and_sort_time_ranges(date_ranges: list) -> list:
     if not date_ranges:

@@ -196,8 +196,10 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
                         device_id, dispatches.get("completedDispatches", [])
                     )
 
-                    union_planned.extend(planned)
-                    union_completed.extend(completed)
+                    status = self._build_device_status(device, preferences, dispatches)
+                    if not status.get("isSuspended", False):
+                        union_planned.extend(planned)
+                        union_completed.extend(completed)
 
                     device_states[device_id] = {
                         "device": device,
@@ -206,9 +208,7 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
                         ),
                         "plannedDispatches": planned,
                         "completedDispatches": completed,
-                        "status": self._build_device_status(
-                            device, preferences, dispatches
-                        ),
+                        "status": status,
                     }
 
                 union_planned.sort(key=lambda item: item.get("startDtUtc", ""))
@@ -618,9 +618,9 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
                 DeviceTargetSchedule(
                     device_id=current_device_id,
                     label=label,
-                    weekday_target_time=preferences.get('weekdayTargetTime'),
-                    weekend_target_time=preferences.get('weekendTargetTime'),
-                    active_target_time=preferences.get(target_key),
+                    weekday_target_time=normalize_time_string(preferences.get('weekdayTargetTime')),
+                    weekend_target_time=normalize_time_string(preferences.get('weekendTargetTime')),
+                    active_target_time=normalize_time_string(preferences.get(target_key)),
                     weekday_target_soc=preferences.get('weekdayTargetSoc'),
                     weekend_target_soc=preferences.get('weekendTargetSoc'),
                     minimum_soc=preferences.get('minimumSoc'),

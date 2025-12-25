@@ -15,6 +15,7 @@ from .const import (
     INTELLIGENT_SOC_OPTIONS,
 )
 from .entity import OctopusIntelligentPerDeviceEntityMixin
+from .util import normalize_time_string
 
 import logging
 
@@ -202,7 +203,7 @@ class OctopusIntelligentTargetTime(
 
     def _refresh_current_option(self) -> None:
         summary = self._octopus_system.get_ready_time_summary(self._device_id)
-        target_time: str | None = summary.active_target_time
+        target_time: str | None = normalize_time_string(summary.active_target_time)
 
         if not target_time:
             device_entry = summary.first_target()
@@ -217,12 +218,13 @@ class OctopusIntelligentTargetTime(
                         device_entry.weekday_target_time
                         or device_entry.weekend_target_time
                     )
+                target_time = normalize_time_string(target_time)
 
         if not target_time:
             state = self._octopus_system.get_device_state(self._device_id) or {}
             preferences = (state.get("preferences") or {})
             target_key = self._octopus_system.get_active_target_key()
-            target_time = (
+            target_time = normalize_time_string(
                 preferences.get(target_key)
                 or preferences.get("weekdayTargetTime")
                 or preferences.get("weekendTargetTime")

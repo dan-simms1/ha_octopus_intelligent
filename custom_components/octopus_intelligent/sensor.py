@@ -13,7 +13,7 @@ from homeassistant.helpers.event import (
 )
 from .const import DOMAIN, OCTOPUS_SYSTEM
 from .entity import OctopusIntelligentPerDeviceEntityMixin
-from .util import format_equipment_name
+from .util import format_equipment_name, normalize_time_string
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback, HomeAssistant
 from homeassistant.util import slugify
@@ -357,7 +357,7 @@ class OctopusIntelligentTargetReadyTimeSensor(
         summary = self._octopus_system.get_ready_time_summary(
             None if self._is_combined else self._device_id
         )
-        self._native_value = summary.active_target_time
+        self._native_value = normalize_time_string(summary.active_target_time)
 
         if self._is_combined:
             self._attributes = summary.as_combined_attributes()
