@@ -136,9 +136,7 @@ class OctopusIntelligentNextOffpeakTime(
 
     @property
     def name(self):
-        if self._is_combined:
-            return "Octopus Intelligent Next Offpeak Start"
-        return f"{self._equipment_label()} Next Offpeak Start"
+        return self._prefixed_name("Next Offpeak Start")
 
     @property
     def unique_id(self) -> str:
@@ -230,9 +228,7 @@ class OctopusIntelligentOffpeakEndTime(
 
     @property
     def name(self):
-        if self._is_combined:
-            return "Octopus Intelligent Offpeak End"
-        return f"{self._equipment_label()} Offpeak End"
+        return self._prefixed_name("Offpeak End")
 
     @property
     def unique_id(self) -> str:
@@ -324,9 +320,7 @@ class OctopusIntelligentChargingStartSensor(
 
     @property
     def name(self):
-        if self._is_combined:
-            return "Octopus Intelligent Charging Start"
-        return f"{self._equipment_label()} Intelligent Charging Start"
+        return self._prefixed_name("Intelligent Charging Start")
 
     @property
     def unique_id(self) -> str:
@@ -409,9 +403,7 @@ class OctopusIntelligentTargetReadyTimeSensor(
 
     @property
     def name(self):
-        if self._is_combined:
-            return "Octopus Target Ready Time"
-        return f"{self._equipment_label()} Target Ready Time"
+        return self._prefixed_name("Target Ready Time")
 
     @property
     def unique_id(self) -> str:
@@ -479,6 +471,7 @@ class OctopusIntelligentSlotForecastSensor(
         self._attributes: dict[str, Any] = {
             "look_ahead_minutes": look_ahead_mins,
             "device_id": device_id,
+            "scope": "account" if device_id is None else "device",
         }
         self._native_value: str | None = None
         self._timer = async_track_utc_time_change(
@@ -486,10 +479,24 @@ class OctopusIntelligentSlotForecastSensor(
         )
         self._update_native_value(log_on_error=False)
 
+    def _slot_suffix(self) -> str:
+        base_name = self._base_name or ""
+        prefix = "Octopus Intelligent "
+        if base_name.startswith(prefix):
+            return base_name[len(prefix):]
+        return base_name
+
     def _has_continuous_offpeak(self) -> bool:
         mins_looked = 0
         while mins_looked <= self._look_ahead_mins:
-            if not self._octopus_system.is_off_peak_now(mins_looked):
+            if self._is_combined:
+                available = self._octopus_system.is_off_peak_now(mins_looked)
+            else:
+                available = self._octopus_system.is_device_off_peak_now(
+                    self._device_id,
+                    mins_looked,
+                )
+            if not available:
                 return False
             mins_looked += 30
         return True
@@ -517,13 +524,7 @@ class OctopusIntelligentSlotForecastSensor(
 
     @property
     def name(self):
-        if self._is_combined:
-            return self._base_name
-        suffix = self._base_name
-        prefix = "Octopus Intelligent "
-        if suffix.startswith(prefix):
-            suffix = suffix[len(prefix):]
-        return f"{self._equipment_label()} {suffix}"
+        return self._prefixed_name(self._slot_suffix())
 
     @property
     def unique_id(self) -> str:

@@ -108,7 +108,17 @@ class OctopusIntelligentTargetSoc(
         self.async_write_ha_state()
 
     def _refresh_current_option(self) -> None:
-        target_soc = self._octopus_system.get_target_soc(self._device_id)
+        summary = self._octopus_system.get_ready_time_summary(self._device_id)
+        device_entry = summary.first_target()
+        if not device_entry:
+            self._current_option = None
+            return
+
+        if summary.mode == "weekend":
+            target_soc = device_entry.weekend_target_soc or device_entry.weekday_target_soc
+        else:
+            target_soc = device_entry.weekday_target_soc or device_entry.weekend_target_soc
+
         self._current_option = f"{target_soc}" if target_soc is not None else None
 
 
@@ -180,10 +190,11 @@ class OctopusIntelligentTargetTime(
 
         device_entry = summary.first_target()
         if device_entry:
-            self._current_option = (
-                device_entry.weekday_target_time
-                or device_entry.weekend_target_time
-            )
+            if summary.mode == "weekend":
+                fallback = device_entry.weekend_target_time or device_entry.weekday_target_time
+            else:
+                fallback = device_entry.weekday_target_time or device_entry.weekend_target_time
+            self._current_option = fallback
         else:
             self._current_option = None
 

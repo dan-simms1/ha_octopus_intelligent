@@ -569,6 +569,19 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
     def is_off_peak_now(self, minutes_offset: int = 0):
         return self.is_off_peak_time_now(minutes_offset) or self.is_charging_now('smart-charge', minutes_offset)
 
+    def is_device_off_peak_now(
+        self,
+        device_id: str | None,
+        minutes_offset: int = 0,
+    ) -> bool:
+        if not device_id:
+            return self.is_off_peak_now(minutes_offset)
+        return self.is_charging_now(
+            'smart-charge',
+            minutes_offset=minutes_offset,
+            device_id=device_id,
+        )
+
     def get_target_soc(self, device_id: str | None = None):
         device_state = self._get_device_state(device_id)
         if not device_state:

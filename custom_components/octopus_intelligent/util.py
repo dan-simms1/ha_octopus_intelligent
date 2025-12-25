@@ -2,7 +2,7 @@ from datetime import timedelta
 from typing import Any, Mapping
 
 from .const import (
-    SUPPORTED_DEVICE_TYPES,
+    ALLOWED_DEVICE_TYPES,
     UNSUPPORTED_DEVICE_KEYWORDS,
     UNSUPPORTED_DEVICE_PROVIDERS,
     UNSUPPORTED_DEVICE_IDENTIFIERS,
@@ -46,21 +46,28 @@ def format_equipment_name(device: Mapping[str, Any] | None, fallback: str | None
         device = {}
 
     parts: list[str] = []
-    label = device.get("label")
-    if isinstance(label, str) and label.strip():
-        parts.append(label.strip())
+    seen: set[str] = set()
+
+    def _add_part(raw_value: str | None) -> None:
+        if not isinstance(raw_value, str):
+            return
+        trimmed = raw_value.strip()
+        if not trimmed:
+            return
+        normalized = " ".join(trimmed.upper().split())
+        if normalized in seen:
+            return
+        seen.add(normalized)
+        parts.append(trimmed)
+
+    _add_part(device.get("label"))
 
     make = device.get("make") or device.get("vehicleMake") or device.get("chargePointMake")
     model = device.get("model") or device.get("vehicleModel") or device.get("chargePointModel")
     name = " ".join(part for part in [make, model] if isinstance(part, str) and part.strip())
-    if name:
-        parts.append(name)
+    _add_part(name if name else None)
 
-    provider = device.get("provider")
-    if isinstance(provider, str) and provider.strip():
-        provider_value = provider.strip()
-        if provider_value not in parts:
-            parts.append(provider_value)
+    _add_part(device.get("provider"))
 
     if parts:
         return " - ".join(parts)
@@ -105,7 +112,7 @@ def is_supported_equipment(device: Mapping[str, Any] | None) -> bool:
         return False
 
     normalized = device_type.strip().upper()
-    if normalized != "ELECTRIC_VEHICLES":
+    if normalized not in ALLOWED_DEVICE_TYPES:
         return False
 
     if any(keyword in normalized for keyword in UNSUPPORTED_DEVICE_KEYWORDS):

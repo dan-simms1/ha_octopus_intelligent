@@ -26,6 +26,21 @@ class OctopusIntelligentPerDeviceEntityMixin:
         device = device_state.get("device")
         return format_equipment_name(device, fallback=label_fallback)
 
+    def _name_prefix(self) -> str:
+        if getattr(self, "_is_combined", False):
+            return "Octopus Intelligent"
+        label = self._equipment_label()
+        return label or "Octopus Intelligent"
+
+    def _prefixed_name(self, suffix: str) -> str:
+        prefix = self._name_prefix()
+        suffix_value = (suffix or "").strip()
+        if not prefix:
+            return suffix_value
+        if not suffix_value:
+            return prefix
+        return f"{prefix} {suffix_value}"
+
     def _device_info(self) -> dict[str, Any]:
         device_state = self._equipment_state() or {}
         device = device_state.get("device") or {}
