@@ -276,6 +276,11 @@ class OctopusIntelligentPlannedDispatchSlot(
     def is_on(self) -> bool:
         """Return the status of the binary sensor."""
         return self._is_on
+
+    @property
+    def extra_state_attributes(self):
+        """Expose planned/completed dispatch details for dashboards/automations."""
+        return self._attributes
         
     @property
     def device_info(self):
