@@ -8,3 +8,6 @@
 
 ## 2.0.18
 - Options dialog now instantiates cleanly via Home Assistant’s `OptionsFlow` base class, fixing the lingering 500 error when opening Configure and ensuring the new polling/off-peak settings are always accessible.
+
+## 2.0.19
+- Finalized the options dialog fix by aligning with Home Assistant’s internal flow handler expectations, preventing the remaining 500 error when opening Configure after 2.0.18.
