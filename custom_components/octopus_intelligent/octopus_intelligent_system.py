@@ -16,6 +16,7 @@ from .graphql_client import OctopusEnergyGraphQLClient
 from .graphql_util import validate_octopus_account
 from .persistent_data import PersistentData, PersistentDataStore
 from .util import *
+from .const import CONF_POLL_INTERVAL_DEFAULT
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -95,6 +96,7 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
         off_peak_start,
         off_peak_end,
         primary_equipment_id=None,
+        update_interval_seconds: int = CONF_POLL_INTERVAL_DEFAULT,
     ):
         super().__init__(
             hass,
@@ -102,11 +104,12 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
             # Name of the data. For logging purposes.
             name="Octopus Intelligent",
             # Polling interval. Will only be polled if there are subscribers.
-            update_interval=timedelta(seconds=300),
+            update_interval=timedelta(seconds=max(update_interval_seconds, 10)),
         )
         self._hass = hass
         self._api_key = api_key
         self._account_id = account_id
+        self._update_interval_seconds = max(update_interval_seconds, 10)
 
         self._off_peak_start = off_peak_start
         self._off_peak_end = off_peak_end
@@ -197,9 +200,8 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
                     )
 
                     status = self._build_device_status(device, preferences, dispatches)
-                    if not status.get("isSuspended", False):
-                        union_planned.extend(planned)
-                        union_completed.extend(completed)
+                    union_planned.extend(planned)
+                    union_completed.extend(completed)
 
                     device_states[device_id] = {
                         "device": device,
@@ -470,6 +472,8 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
                 if meta_device == device_id:
                     targeted_dispatches.append(entry)
             else:
+                if meta_device and not self.is_smart_charging_enabled(meta_device):
+                    continue
                 combined_dispatches.append(entry)
 
         if device_id:

@@ -32,6 +32,9 @@ from .const import (
     CONF_OFFPEAK_END,
     CONF_OFFPEAK_END_DEFAULT,
     CONF_PRIMARY_EQUIPMENT_ID,
+    CONF_POLL_INTERVAL,
+    CONF_POLL_INTERVAL_DEFAULT,
+    CONF_POLL_INTERVAL_MIN,
     INTELLIGENT_24HR_TIMES
 )
 from .graphql_util import InvalidAuthError, validate_octopus_account
@@ -126,6 +129,9 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
             CONF_PRIMARY_EQUIPMENT_ID: self.config_entry.options.get(
                 CONF_PRIMARY_EQUIPMENT_ID, ""
             ),
+            CONF_POLL_INTERVAL: self.config_entry.options.get(
+                CONF_POLL_INTERVAL, CONF_POLL_INTERVAL_DEFAULT
+            ),
         }
 
         if user_input is not None:
@@ -162,6 +168,10 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
                         new_options[CONF_PRIMARY_EQUIPMENT_ID] = primary_value
                     else:
                         new_options.pop(CONF_PRIMARY_EQUIPMENT_ID, None)
+                    new_options[CONF_POLL_INTERVAL] = user_input.get(
+                        CONF_POLL_INTERVAL,
+                        CONF_POLL_INTERVAL_DEFAULT,
+                    )
 
                     self.hass.config_entries.async_update_entry(
                         self.config_entry, data=new_data, options=new_options
@@ -187,6 +197,13 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
             CONF_OFFPEAK_END,
             default=form_values[CONF_OFFPEAK_END],
         )] = vol.In(INTELLIGENT_24HR_TIMES)
+        fields[vol.Required(
+            CONF_POLL_INTERVAL,
+            default=form_values[CONF_POLL_INTERVAL],
+        )] = vol.All(
+            vol.Coerce(int),
+            vol.Range(min=CONF_POLL_INTERVAL_MIN, max=7200),
+        )
 
         if device_selector_options:
             selector_field = self._build_device_selector_field(device_selector_options)

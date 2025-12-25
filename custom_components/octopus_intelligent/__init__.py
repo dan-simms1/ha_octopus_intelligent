@@ -20,9 +20,11 @@ from .const import(
     CONF_OFFPEAK_START,
     CONF_OFFPEAK_END,
     CONF_PRIMARY_EQUIPMENT_ID,
+    CONF_POLL_INTERVAL,
+    CONF_POLL_INTERVAL_DEFAULT,
     UNSUPPORTED_DEVICE_PROVIDERS,
 )
-from .util import to_timedelta
+from .util import to_timedelta, format_equipment_name
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,6 +42,14 @@ async def async_setup(hass: HomeAssistant, config: dict):
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     _LOGGER.debug("Setting up Octopus Intelligent System component")
 
+    poll_interval = entry.options.get(CONF_POLL_INTERVAL, CONF_POLL_INTERVAL_DEFAULT)
+    try:
+        poll_interval = int(poll_interval)
+    except (TypeError, ValueError):
+        poll_interval = CONF_POLL_INTERVAL_DEFAULT
+    if poll_interval < 1:
+        poll_interval = CONF_POLL_INTERVAL_DEFAULT
+
     octopus_system = OctopusIntelligentSystem(
         hass,
         api_key=entry.data[CONF_API_KEY],
@@ -47,6 +57,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         off_peak_start=to_timedelta(entry.data[CONF_OFFPEAK_START]),
         off_peak_end=to_timedelta(entry.data[CONF_OFFPEAK_END]),
         primary_equipment_id=entry.options.get(CONF_PRIMARY_EQUIPMENT_ID),
+        update_interval_seconds=poll_interval,
     )
 
     try:
@@ -64,6 +75,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     await _async_cleanup_legacy_controls(hass)
     await _async_remove_unsupported_devices(hass)
+    await _async_update_vehicle_device_icons(hass, entry, octopus_system)
 
     #hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, lambda event: octopus_system.stop())
 
@@ -175,3 +187,41 @@ async def _async_remove_unsupported_devices(hass: HomeAssistant) -> None:
             device_id,
         )
         registry.async_remove_device(device_id)
+
+
+async def _async_update_vehicle_device_icons(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    octopus_system: OctopusIntelligentSystem,
+) -> None:
+    """Ensure EV devices show a car icon in the Integrations view."""
+    registry = dr.async_get(hass)
+    account_identifier = ("AccountID", octopus_system.account_id)
+
+    for device_id in octopus_system.get_supported_device_ids():
+        identifier = (DOMAIN, f"{octopus_system.account_id}_{device_id}")
+        identifiers = {identifier}
+
+        device_state = octopus_system.get_device_state(device_id) or {}
+        device = device_state.get("device") or {}
+        manufacturer = device.get("provider") or "Octopus"
+        model = (
+            device.get("model")
+            or device.get("vehicleModel")
+            or device.get("chargePointModel")
+        )
+        name = format_equipment_name(device, fallback=f"Equipment {device_id}")
+
+        device_entry = registry.async_get_device(identifiers)
+        if not device_entry:
+            device_entry = registry.async_get_or_create(
+                config_entry_id=entry.entry_id,
+                identifiers=identifiers,
+                manufacturer=manufacturer,
+                model=model,
+                name=name,
+                via_device=account_identifier,
+            )
+
+        if device_entry and device_entry.icon != "mdi:car-electric":
+            registry.async_update_device(device_entry.id, icon="mdi:car-electric")

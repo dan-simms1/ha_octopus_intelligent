@@ -140,7 +140,7 @@ class OctopusIntelligentNextOffpeakTime(
                 "identifiers": {
                     ("AccountID", self._octopus_system.account_id),
                 },
-                "name": "Octopus Intelligent Combined Sensors",
+                "name": "Octopus Intelligent Tariff",
                 "manufacturer": "Octopus",
             }
 
@@ -232,7 +232,7 @@ class OctopusIntelligentOffpeakEndTime(
                 "identifiers": {
                     ("AccountID", self._octopus_system.account_id),
                 },
-                "name": "Octopus Intelligent Combined Sensors",
+                "name": "Octopus Intelligent Tariff",
                 "manufacturer": "Octopus",
             }
 
@@ -322,7 +322,7 @@ class OctopusIntelligentChargingStartSensor(
                 "identifiers": {
                     ("AccountID", self._octopus_system.account_id),
                 },
-                "name": "Octopus Intelligent Combined Sensors",
+                "name": "Octopus Intelligent Tariff",
                 "manufacturer": "Octopus",
             }
 
