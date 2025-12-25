@@ -140,7 +140,7 @@ class OctopusIntelligentNextOffpeakTime(
                 "identifiers": {
                     ("AccountID", self._octopus_system.account_id),
                 },
-                "name": "Octopus Intelligent Tariff",
+                "name": "Octopus Intelligent Combined Sensors",
                 "manufacturer": "Octopus",
             }
 
@@ -232,7 +232,7 @@ class OctopusIntelligentOffpeakEndTime(
                 "identifiers": {
                     ("AccountID", self._octopus_system.account_id),
                 },
-                "name": "Octopus Intelligent Tariff",
+                "name": "Octopus Intelligent Combined Sensors",
                 "manufacturer": "Octopus",
             }
 
@@ -322,7 +322,7 @@ class OctopusIntelligentChargingStartSensor(
                 "identifiers": {
                     ("AccountID", self._octopus_system.account_id),
                 },
-                "name": "Octopus Intelligent Tariff",
+                "name": "Octopus Intelligent Combined Sensors",
                 "manufacturer": "Octopus",
             }
 
@@ -485,6 +485,16 @@ class OctopusIntelligentTargetSocSensor(
     @property
     def native_unit_of_measurement(self):
         return PERCENTAGE
+
+    @property
+    def device_info(self):
+        return self._device_info()
+
+    @property
+    def available(self) -> bool:
+        if not super().available:
+            return False
+        return bool(self._equipment_state())
 
     @property
     def icon(self):
