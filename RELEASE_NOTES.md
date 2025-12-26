@@ -1,5 +1,10 @@
 # Release Notes
 
+# Release Notes
+
+## 2.1.1
+- Fixed the Target State of Charge select so it no longer crashes when Octopus returns `HH:MM:SS` timestamps. Time parsing now accepts seconds, and regression tests cover the helper.
+
 ## 2.1.0
 - README refreshed to highlight the multi-car entity set, slot differentiation, updated configuration options, and the new canonical repository URL so documentation now mirrors the latest behaviour.
 

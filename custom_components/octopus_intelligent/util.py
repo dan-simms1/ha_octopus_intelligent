@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from datetime import timedelta
 from typing import Any, Mapping
 
@@ -11,8 +13,16 @@ from .const import (
 
 def to_timedelta(str_time: str) -> timedelta:
     """Convert a time string to a timedelta."""
-    hours, minutes = str_time.split(":")
-    return timedelta(hours=int(hours), minutes=int(minutes))
+    parts = str_time.split(":")
+    if len(parts) == 2:
+        hours, minutes = parts
+        seconds = 0
+    elif len(parts) == 3:
+        hours, minutes, seconds = parts
+    else:
+        raise ValueError(f"Invalid time string '{str_time}'")
+
+    return timedelta(hours=int(hours), minutes=int(minutes), seconds=int(seconds))
 
 def to_time_string(td: timedelta) -> str:
     """Convert a timedelta to a HH:mm time string."""

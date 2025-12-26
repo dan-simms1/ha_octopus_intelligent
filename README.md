@@ -35,7 +35,6 @@ The Configure dialog (Settings → Devices & Services → Octopus Intelligent Ta
 
 - Override the off-peak start/end time so sensors stay aligned with your tariff even if Octopus tweaks the window.
 - Change the coordinator polling interval (minimum 10 seconds) when you want faster state changes or need to reduce API usage.
-- Select a primary vehicle when you prefer one car to drive the account-wide summary entities.
 
 These options can be updated at any time; the integration persists them via Home Assistant’s config entry options, so re-authentication is never required.
 
