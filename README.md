@@ -1,5 +1,5 @@
 # octopus_intelligent
-Octopus Intelligent Home Assistant integration
+Octopus Intelligent Home Assistant integration, maintained as a fork of the original project by [megakid](https://github.com/megakid/ha_octopus_intelligent).
 
 ## Key features
 
@@ -67,7 +67,7 @@ The per-vehicle selects (`select.<equipment_name>_target_state_of_charge` and `s
 
 ## Installation & Usage
 
-1. Add repository to HACS (see https://hacs.xyz/docs/faq/custom_repositories) - use "https://github.com/megakid/ha_octopus_intelligent" as the repository URL.
+1. Add repository to HACS (see https://hacs.xyz/docs/faq/custom_repositories) - use "https://github.com/dan-simms1/ha_octopus_intelligent" as the repository URL.
 2. Install the `octopus_intelligent` integration inside HACS (You do NOT need to restart despite HACS saying so)
 3. Goto Integrations page and add "Octopus Intelligent Tariff" integration as with any other integration
 4. Follow config steps (Your Octopus API key can be found here: https://octopus.energy/dashboard/developer/ and your account ID is the string starting `A-` displayed near the top of your Octopus account page)
