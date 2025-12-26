@@ -73,3 +73,15 @@ def test_filter_future_dispatches_keeps_entries_without_end_time():
     filtered = _filter_future_dispatches(dispatches, now=now)
 
     assert [entry["id"] for entry in filtered] == ["iso", "missing-end"]
+
+
+def test_filter_future_dispatches_handles_colon_offsets():
+    now = datetime(2025, 12, 26, 0, 0, tzinfo=timezone.utc)
+    dispatches = [
+        {"endDtUtc": "2025-12-25T23:07:09+00:00", "id": "past"},
+        {"endDtUtc": "2025-12-26T01:07:09+00:00", "id": "future"},
+    ]
+
+    filtered = _filter_future_dispatches(dispatches, now=now)
+
+    assert [entry["id"] for entry in filtered] == ["future"]

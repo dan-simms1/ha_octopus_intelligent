@@ -117,16 +117,19 @@ def _parse_dispatch_datetime(value):
     if not isinstance(value, str):
         return None
 
-    cleaned = value.replace("T", " ").replace("Z", "+00:00")
-    for fmt in ("%Y-%m-%d %H:%M:%S%z", "%Y-%m-%d %H:%M:%S"):
+    cleaned = value.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(cleaned)
+    except ValueError:
+        cleaned = cleaned.replace("T", " ")
         try:
-            parsed = datetime.strptime(cleaned, fmt)
-            if parsed.tzinfo is None:
-                parsed = parsed.replace(tzinfo=timezone.utc)
-            return parsed.astimezone(timezone.utc)
+            parsed = datetime.fromisoformat(cleaned)
         except ValueError:
-            continue
-    return None
+            return None
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _filter_future_dispatches(dispatches, *, now=None):
