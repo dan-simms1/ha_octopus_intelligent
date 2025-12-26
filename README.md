@@ -1,6 +1,13 @@
 # octopus_intelligent
 Octopus Intelligent Home Assistant integration
 
+## Key features
+
+- **Multi-car awareness:** Every supported vehicle exposes its own switches, selects, sensors, and slot windows while the integration still publishes combined account-level entities for quick at-a-glance checks.
+- **Slot transparency:** Smart-Charge Slot, Offpeak Window, and Planned Dispatch sensors reflect the exact state of Octopus’ dispatch planner, including per-car attributes for automations and dashboards.
+- **Configurable tariff windows:** Adjust the cheap-rate start/end times or polling interval straight from Home Assistant’s Configure dialog without re-running onboarding.
+- **Rich debugging data:** Entities carry raw `planned_dispatches`, `completed_dispatches`, status metadata, and friendly names so you can confirm what Octopus is planning before an overnight charge.
+
 ### Smart-Charge Slot sensors
 
 * `binary_sensor.intelligent_smart_charge_slot` (and the `next 1/2/3 hours` variations) stay `on` while Octopus Intelligent has an active or imminent smart-charge dispatch anywhere on your account.  These are the best choice when you want to know “is Octopus actually charging right now?”.
@@ -13,7 +20,7 @@ Octopus Intelligent Home Assistant integration
 
 ### Planned dispatch sensor
 
-* `binary_sensor.octopus_intelligent_planned_dispatch_slot` remains `on` whenever Octopus has at least one smart-charge dispatch scheduled for the account.  Per-car equivalents surface the same data scoped to each device.
+* `binary_sensor.octopus_intelligent_planned_dispatch_slot` remains `on` whenever Octopus still reports a future smart-charge dispatch for the account.  It automatically drops back to `off` once every slot has ended, even if Octopus keeps the historical entries around.  Per-car equivalents surface the same data scoped to each device and expose the raw `planned_dispatches`/`completed_dispatches` attributes for debugging.
 
 * `sensor.octopus_intelligent_next_offpeak_start` - will display the timestamp (UTC) of the next expected offpeak period start time.
 * `sensor.octopus_intelligent_offpeak_end` - will display the timestamp (UTC) of the expected end of current offpeak period (will remain so during the following peak period until a new offpeak period starts)
@@ -21,6 +28,16 @@ Octopus Intelligent Home Assistant integration
 NOTE: It has come to my attention that, when outside core offpeak hours (2330 -> 0530), if your car does not successfully charge during the planned slots then your usage will be billed at peak pricing.  This means that if charging is unreliable then the sensor won't reflect your billing accurately.
 
 Need to adjust your cheap-rate window? Open Home Assistant → Settings → Devices & Services → Octopus Intelligent Tariff → Configure to set the off-peak start and end times without re-running the full setup.
+
+### Configuration options
+
+The Configure dialog (Settings → Devices & Services → Octopus Intelligent Tariff → Configure) lets you:
+
+- Override the off-peak start/end time so sensors stay aligned with your tariff even if Octopus tweaks the window.
+- Change the coordinator polling interval (minimum 10 seconds) when you want faster state changes or need to reduce API usage.
+- Select a primary vehicle when you prefer one car to drive the account-wide summary entities.
+
+These options can be updated at any time; the integration persists them via Home Assistant’s config entry options, so re-authentication is never required.
 
 * `switch.octopus_intelligent_bump_charge` and `switch.octopus_intelligent_smart_charging` - controls your Octopus Intelligent bump charge and smart charge settings
 

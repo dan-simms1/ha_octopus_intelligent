@@ -1,5 +1,8 @@
 # Release Notes
 
+## 2.1.0
+- README refreshed to highlight the multi-car entity set, slot differentiation, and configuration options so documentation now mirrors the latest behaviour.
+
 ## 2.0.29
 - ISO8601 timestamps with colon offsets (e.g. `+00:00`) are now parsed correctly, so Planned Dispatch Slot sensors drop past slots even when Octopus returns the raw schedule format.
 - Added regression tests covering the new parser to prevent future regressions.
