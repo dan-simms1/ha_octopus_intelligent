@@ -307,8 +307,6 @@ class OctopusIntelligentChargingStartSensor(
 
     @property
     def name(self):
-        if self._is_combined:
-            return "Octopus Intelligent Charging Start"
         return "Intelligent Charging Start"
 
     @property

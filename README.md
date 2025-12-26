@@ -1,15 +1,19 @@
 # octopus_intelligent
 Octopus Intelligent Home Assistant integration
 
-* `binary_sensor.octopus_intelligent_slot` - will be `on` when your electricity is cheap. This includes when your car is charging outside of the normal Octopus Intelligent offpeak times but NOT when bump charging (unless within off peak hours)
+### Smart-Charge Slot sensors
 
-* `binary_sensor.octopus_intelligent_planned_dispatch_slot` - will be `on` when Octopus plans to charge your car. This includes when your car is charging outside of the normal Octopus Intelligent offpeak times but NOT when bump charging.  Your electricity might be offpeak when this sensor reports "off" (e.g. during the overnight 6 hours)
+* `binary_sensor.intelligent_smart_charge_slot` (and the `next 1/2/3 hours` variations) stay `on` while Octopus Intelligent has an active or imminent smart-charge dispatch anywhere on your account.  These are the best choice when you want to know “is Octopus actually charging right now?”.
+* Every vehicle also exposes its own `binary_sensor.<equipment>_smart_charge_slot` family that only reports `on` when that specific car has dispatches scheduled.  Their attributes include the raw `planned_dispatches`/`completed_dispatches` payloads for debugging or dashboards.
 
-* `binary_sensor.octopus_intelligent_slot_next_1_hour` - will be `on` when your electricity is cheap for the next 1 hour.
-* `binary_sensor.octopus_intelligent_slot_next_2_hours` - will be `on` when your electricity is cheap for the next 2 hours.
-* `binary_sensor.octopus_intelligent_slot_next_3_hours` - will be `on` when your electricity is cheap for the next 3 hours.
+### Offpeak Window sensors
 
-Every supported vehicle exposes the same family of slot sensors, e.g. `binary_sensor.tesla_model_3_slot`, `binary_sensor.tesla_model_3_slot_next_1_hour` and `binary_sensor.tesla_model_3_planned_dispatch_slot`.  These per-car entities only report `on` when Octopus has actually scheduled dispatches for that specific vehicle, and their attributes include the raw `planned_dispatches`/`completed_dispatches` payloads so automations can inspect the exact schedule that Octopus published.
+* `binary_sensor.intelligent_offpeak_window` (and the `next 1/2/3 hours` variations) represent the tariff’s configured cheap-rate window regardless of what Octopus is currently planning.  Use these when you just want to know “is the energy price cheap right now?”
+* Each vehicle mirrors the same sensors (`binary_sensor.<equipment>_offpeak_window*`).  They automatically turn `off` if the device is suspended inside the Octopus app so you don’t accidentally rely on a car that can’t make use of the off-peak window.
+
+### Planned dispatch sensor
+
+* `binary_sensor.octopus_intelligent_planned_dispatch_slot` remains `on` whenever Octopus has at least one smart-charge dispatch scheduled for the account.  Per-car equivalents surface the same data scoped to each device.
 
 * `sensor.octopus_intelligent_next_offpeak_start` - will display the timestamp (UTC) of the next expected offpeak period start time.
 * `sensor.octopus_intelligent_offpeak_end` - will display the timestamp (UTC) of the expected end of current offpeak period (will remain so during the following peak period until a new offpeak period starts)

@@ -612,6 +612,35 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
             device_id=device_id,
         )
 
+    def is_device_off_peak_window_now(
+        self,
+        device_id: str | None,
+        minutes_offset: int = 0,
+    ) -> bool:
+        """Return True when the supplied device can take advantage of the tariff window."""
+        if device_id and not self.is_smart_charging_enabled(device_id):
+            return False
+        return self.is_off_peak_time_now(minutes_offset)
+
+    def is_slot_mode_active(
+        self,
+        slot_mode: str,
+        *,
+        device_id: str | None,
+        minutes_offset: int = 0,
+    ) -> bool:
+        if slot_mode == 'smart_charge':
+            return self.is_off_peak_charging_now(
+                minutes_offset=minutes_offset,
+                device_id=device_id,
+            )
+        if device_id:
+            return self.is_device_off_peak_window_now(
+                device_id,
+                minutes_offset=minutes_offset,
+            )
+        return self.is_off_peak_time_now(minutes_offset)
+
     def get_target_soc(self, device_id: str | None = None):
         device_state = self._get_device_state(device_id)
         if not device_state:

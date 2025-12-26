@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
@@ -17,12 +19,94 @@ import logging
 _LOGGER = logging.getLogger(__name__)
 
 
-SLOT_DEFINITIONS: tuple[tuple[str, str, bool, int], ...] = (
-    ("Octopus Intelligent Slot", "Slot", True, 0),
-    ("Octopus Intelligent Slot (next 1 hour)", "Slot (next 1 hour)", False, 60),
-    ("Octopus Intelligent Slot (next 2 hours)", "Slot (next 2 hours)", False, 120),
-    ("Octopus Intelligent Slot (next 3 hours)", "Slot (next 3 hours)", False, 180),
+SLOT_MODE_SMART_CHARGE = "smart_charge"
+SLOT_MODE_OFFPEAK = "offpeak_window"
+
+
+@dataclass(frozen=True)
+class SlotDefinition:
+    unique_id_source: str
+    combined_name: str
+    suffix: str
+    store_attributes: bool
+    look_ahead_mins: int
+
+
+SMART_CHARGE_SLOT_DEFINITIONS: tuple[SlotDefinition, ...] = (
+    SlotDefinition(
+        unique_id_source="Octopus Intelligent Slot",
+        combined_name="Intelligent Smart-Charge Slot",
+        suffix="Smart-Charge Slot",
+        store_attributes=True,
+        look_ahead_mins=0,
+    ),
+    SlotDefinition(
+        unique_id_source="Octopus Intelligent Slot (next 1 hour)",
+        combined_name="Intelligent Smart-Charge Slot (next 1 hour)",
+        suffix="Smart-Charge Slot (next 1 hour)",
+        store_attributes=False,
+        look_ahead_mins=60,
+    ),
+    SlotDefinition(
+        unique_id_source="Octopus Intelligent Slot (next 2 hours)",
+        combined_name="Intelligent Smart-Charge Slot (next 2 hours)",
+        suffix="Smart-Charge Slot (next 2 hours)",
+        store_attributes=False,
+        look_ahead_mins=120,
+    ),
+    SlotDefinition(
+        unique_id_source="Octopus Intelligent Slot (next 3 hours)",
+        combined_name="Intelligent Smart-Charge Slot (next 3 hours)",
+        suffix="Smart-Charge Slot (next 3 hours)",
+        store_attributes=False,
+        look_ahead_mins=180,
+    ),
 )
+
+
+OFFPEAK_WINDOW_DEFINITIONS: tuple[SlotDefinition, ...] = (
+    SlotDefinition(
+        unique_id_source="Intelligent Offpeak Window",
+        combined_name="Intelligent Offpeak Window",
+        suffix="Offpeak Window",
+        store_attributes=False,
+        look_ahead_mins=0,
+    ),
+    SlotDefinition(
+        unique_id_source="Intelligent Offpeak Window (next 1 hour)",
+        combined_name="Intelligent Offpeak Window (next 1 hour)",
+        suffix="Offpeak Window (next 1 hour)",
+        store_attributes=False,
+        look_ahead_mins=60,
+    ),
+    SlotDefinition(
+        unique_id_source="Intelligent Offpeak Window (next 2 hours)",
+        combined_name="Intelligent Offpeak Window (next 2 hours)",
+        suffix="Offpeak Window (next 2 hours)",
+        store_attributes=False,
+        look_ahead_mins=120,
+    ),
+    SlotDefinition(
+        unique_id_source="Intelligent Offpeak Window (next 3 hours)",
+        combined_name="Intelligent Offpeak Window (next 3 hours)",
+        suffix="Offpeak Window (next 3 hours)",
+        store_attributes=False,
+        look_ahead_mins=180,
+    ),
+)
+
+
+def _is_slot_mode_active(
+    octopus_system,
+    slot_mode: str,
+    device_id: str | None,
+    minutes_offset: int,
+):
+    return octopus_system.is_slot_mode_active(
+        slot_mode,
+        device_id=device_id,
+        minutes_offset=minutes_offset,
+    )
 
 
 async def async_setup_entry(
@@ -35,17 +119,29 @@ async def async_setup_entry(
 
     entities: list[BinarySensorEntity] = []
 
-    for combined_name, suffix, store_attrs, look_ahead in SLOT_DEFINITIONS:
-        entities.append(
-            OctopusIntelligentSlot(
-                hass,
-                octopus_system,
-                combined_name,
-                suffix,
-                store_attrs,
-                look_ahead,
+    def _add_slot_entities(
+        definitions: tuple[SlotDefinition, ...],
+        slot_mode: str,
+        *,
+        device_id: str | None = None,
+    ) -> None:
+        for definition in definitions:
+            entities.append(
+                OctopusIntelligentSlot(
+                    hass,
+                    octopus_system,
+                    definition.unique_id_source,
+                    definition.combined_name,
+                    definition.suffix,
+                    slot_mode,
+                    definition.store_attributes if device_id is None else False,
+                    definition.look_ahead_mins,
+                    device_id=device_id,
+                )
             )
-        )
+
+    _add_slot_entities(SMART_CHARGE_SLOT_DEFINITIONS, SLOT_MODE_SMART_CHARGE)
+    _add_slot_entities(OFFPEAK_WINDOW_DEFINITIONS, SLOT_MODE_OFFPEAK)
 
     entities.append(
         OctopusIntelligentPlannedDispatchSlot(
@@ -57,18 +153,8 @@ async def async_setup_entry(
     )
 
     for device_id in device_ids:
-        for combined_name, suffix, _store_attrs, look_ahead in SLOT_DEFINITIONS:
-            entities.append(
-                OctopusIntelligentSlot(
-                    hass,
-                    octopus_system,
-                    combined_name,
-                    suffix,
-                    False,
-                    look_ahead,
-                    device_id=device_id,
-                )
-            )
+        _add_slot_entities(SMART_CHARGE_SLOT_DEFINITIONS, SLOT_MODE_SMART_CHARGE, device_id=device_id)
+        _add_slot_entities(OFFPEAK_WINDOW_DEFINITIONS, SLOT_MODE_OFFPEAK, device_id=device_id)
 
         entities.append(
             OctopusIntelligentPlannedDispatchSlot(
@@ -83,15 +169,35 @@ async def async_setup_entry(
     async_add_entities(entities, False)  # False: data was already fetched by __init__.py async_setup_entry()
 
 
+class _OctopusBinaryEntityBase(OctopusIntelligentPerDeviceEntityMixin):
+    def _account_device_info(self):
+        return {
+            "identifiers": {
+                ("AccountID", self._octopus_system.account_id),
+            },
+            "name": "Intelligent Tariff",
+            "manufacturer": "Octopus",
+        }
+
+    def _slot_device_info(self):
+        if self._is_combined:
+            return self._account_device_info()
+        info = self._device_info()
+        info["via_device"] = ("AccountID", self._octopus_system.account_id)
+        return info
+
+
 class OctopusIntelligentSlot(
-    OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, BinarySensorEntity
+    _OctopusBinaryEntityBase, CoordinatorEntity, BinarySensorEntity
 ):
     def __init__(
         self,
         hass,
         octopus_system,
+        unique_id_source: str,
         combined_name: str,
         name_suffix: str,
+        slot_mode: str,
         store_attributes: bool = False,
         look_ahead_mins: int = 0,
         *,
@@ -102,37 +208,43 @@ class OctopusIntelligentSlot(
         self._octopus_system = octopus_system
         self._device_id = device_id
         self._is_combined = device_id is None
+        slug_source = unique_id_source or combined_name
         self._combined_name = combined_name
         self._name_suffix = name_suffix
         self._unique_id = (
-            slugify(combined_name)
+            slugify(slug_source)
             if self._is_combined
-            else slugify(f"{combined_name}_{device_id}")
+            else slugify(f"{slug_source}_{device_id}")
         )
+        self._slot_mode = slot_mode
         self._store_attributes = store_attributes
         self._look_ahead_mins = look_ahead_mins
         self._attributes = {}
-        self._is_on = self._is_off_peak()
+        self._is_on = self._is_slot_active()
 
         self._timer = async_track_utc_time_change(
             hass, self.timer_update, minute=range(0, 60, 30), second=1)
 
-    def _is_off_peak(self):
+    def _is_slot_active(self):
         mins_looked = 0
-        while (mins_looked <= self._look_ahead_mins):
-            if self._device_id:
-                if not self._octopus_system.is_device_off_peak_now(self._device_id, mins_looked):
-                    return False
-            else:
-                if not self._octopus_system.is_off_peak_now(mins_looked):
-                    return False
+        while mins_looked <= self._look_ahead_mins:
+            if not self._is_active_at_offset(mins_looked):
+                return False
             mins_looked += 30
         return True
+
+    def _is_active_at_offset(self, minutes_offset: int) -> bool:
+        return _is_slot_mode_active(
+            self._octopus_system,
+            self._slot_mode,
+            self._device_id,
+            minutes_offset,
+        )
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        self._is_on = self._is_off_peak()
+        self._is_on = self._is_slot_active()
         if (self._store_attributes):
             if self._is_combined:
                 self._attributes = self.coordinator.data
@@ -143,7 +255,7 @@ class OctopusIntelligentSlot(
     @callback
     async def timer_update(self, time):
         """Refresh state when timer is fired."""
-        self._is_on = self._is_off_peak()
+        self._is_on = self._is_slot_active()
         self.async_write_ha_state()
 
     @property
@@ -170,17 +282,7 @@ class OctopusIntelligentSlot(
         
     @property
     def device_info(self):
-        if self._is_combined:
-            return {
-                "identifiers": {
-                    ("AccountID", self._octopus_system.account_id),
-                },
-                "name": "Octopus Intelligent Tariff",
-                "manufacturer": "Octopus",
-            }
-        info = self._device_info()
-        info["via_device"] = ("AccountID", self._octopus_system.account_id)
-        return info
+        return self._slot_device_info()
     @property
     def icon(self):
         """Icon of the entity."""
@@ -192,7 +294,7 @@ class OctopusIntelligentSlot(
 
 
 class OctopusIntelligentPlannedDispatchSlot(
-    OctopusIntelligentPerDeviceEntityMixin, CoordinatorEntity, BinarySensorEntity
+    _OctopusBinaryEntityBase, CoordinatorEntity, BinarySensorEntity
 ):
     def __init__(
         self,
@@ -284,17 +386,7 @@ class OctopusIntelligentPlannedDispatchSlot(
         
     @property
     def device_info(self):
-        if self._is_combined:
-            return {
-                "identifiers": {
-                    ("AccountID", self._octopus_system.account_id),
-                },
-                "name": "Octopus Intelligent Tariff",
-                "manufacturer": "Octopus",
-            }
-        info = self._device_info()
-        info["via_device"] = ("AccountID", self._octopus_system.account_id)
-        return info
+        return self._slot_device_info()
     @property
     def icon(self):
         """Icon of the entity."""

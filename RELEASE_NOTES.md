@@ -12,8 +12,19 @@
 ## 2.0.19
 - Finalized the options dialog fix by aligning with Home Assistant’s internal flow handler expectations, preventing the remaining 500 error when opening Configure after 2.0.18.
 
+## 2.0.27
+- Slot sensors now share a single helper inside the coordinator, reducing drift between the smart-charge and off-peak calculations and making the logic easier to test.
+- Binary sensor classes reuse a common base for naming/device-info so account-level and per-car entities stay consistent even as we add new views.
+- Added regression tests covering the slot-mode helper to guard against future behaviour changes.
+- README updated to describe the new Smart-Charge vs Offpeak sensor families.
+
+## 2.0.26
+- Split the old `Slot` binary sensor into explicit `Smart-Charge Slot` entities (showing when an Octopus intelligent dispatch is planned/running) and new `Offpeak Window` entities that mirror the tariff’s cheap-rate window, removing the ambiguity between the two concepts.
+- Added per-car and combined variants of the `Offpeak Window` sensors so dashboards can show both “when the tariff is cheap” and “when Octopus is actually charging” for each device.
+
 ## 2.0.25
 - Device names now prefer the Octopus-provided label (when it isn’t an ID), preventing duplicated car names like `select.tesla_model_3_tesla_model_3_tesla_v2_target_state_of_charge` and keeping entity display names clean.
 - Timestamp sensors (`Next Offpeak Start`, `Offpeak End`, `Intelligent Charging Start`) now publish their values immediately after the coordinator loads, so they no longer sit at `unknown` after a reload when data is already available.
 - Per-car Planned Dispatch Slot sensors once again expose the raw `planned_dispatches` / `completed_dispatches` attributes for dashboards and automations.
 - Per-car timestamp sensors now fall back to the standard off-peak window whenever all stored dispatch slots are in the past, preventing them from getting stuck at `unknown` while the combined view continues to work.
+- Account-level sensors now drop the `Octopus` prefix (for example, `Octopus Intelligent Charging Start` → `Intelligent Charging Start`) so their titles match the per-car entities.
