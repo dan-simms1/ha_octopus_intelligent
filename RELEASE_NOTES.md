@@ -1,5 +1,9 @@
 # Release Notes
 
+## 2.0.28
+- Planned Dispatch Slot sensors now ignore stale dispatches, ensuring they only stay `on` when Octopus still has a future smart-charge window scheduled for that device/account.
+- Added defensive timestamp parsing plus regression tests so malformed or legacy API responses can’t keep the sensors stuck in the `on` state.
+
 ## 2.0.17
 - Added per-vehicle slot binaries (`slot`, `slot_next_n_hours`, and `planned_dispatch_slot`) so each supported car exposes its own view of Octopus-planned dispatches, complete with raw `planned_dispatches` / `completed_dispatches` attributes for automations.
 - Normalised GraphQL dispatch `type` values (e.g. `SMART`, `BOOST`) to the canonical `smart-charge` / `bump-charge` sources so the combined charging-start sensor reports the first true dispatch instead of defaulting to 23:30.

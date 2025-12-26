@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
@@ -10,6 +11,7 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.helpers.event import (
     async_track_utc_time_change
 )
+from homeassistant.util import dt as dt_util
 from .const import DOMAIN, OCTOPUS_SYSTEM
 from .entity import OctopusIntelligentPerDeviceEntityMixin
 from homeassistant.config_entries import ConfigEntry
@@ -107,6 +109,39 @@ def _is_slot_mode_active(
         device_id=device_id,
         minutes_offset=minutes_offset,
     )
+
+
+def _parse_dispatch_datetime(value):
+    if isinstance(value, datetime):
+        return value.astimezone(timezone.utc)
+    if not isinstance(value, str):
+        return None
+
+    cleaned = value.replace("T", " ").replace("Z", "+00:00")
+    for fmt in ("%Y-%m-%d %H:%M:%S%z", "%Y-%m-%d %H:%M:%S"):
+        try:
+            parsed = datetime.strptime(cleaned, fmt)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+        except ValueError:
+            continue
+    return None
+
+
+def _filter_future_dispatches(dispatches, *, now=None):
+    if not dispatches:
+        return []
+
+    current = now or dt_util.utcnow()
+    future: list[dict] = []
+    for dispatch in dispatches:
+        end_value = dispatch.get("endDtUtc") or dispatch.get("end")
+        end_utc = _parse_dispatch_datetime(end_value)
+        if end_utc and end_utc <= current:
+            continue
+        future.append(dispatch)
+    return future
 
 
 async def async_setup_entry(
@@ -344,9 +379,11 @@ class OctopusIntelligentPlannedDispatchSlot(
     def _get_planned_dispatches(self):
         if self._is_combined:
             data = self.coordinator.data or {}
-            return data.get("plannedDispatches", [])
-        device_state = self._octopus_system.get_device_state(self._device_id) or {}
-        return device_state.get("plannedDispatches", [])
+            planned = data.get("plannedDispatches", [])
+        else:
+            device_state = self._octopus_system.get_device_state(self._device_id) or {}
+            planned = device_state.get("plannedDispatches", [])
+        return _filter_future_dispatches(planned)
 
     def _build_attributes(self, planned_dispatches):
         if self._is_combined:

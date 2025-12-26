@@ -1,9 +1,12 @@
+from datetime import datetime, timezone
+
 import pytest
 
 from custom_components.octopus_intelligent.binary_sensor import (
     SLOT_MODE_OFFPEAK,
     SLOT_MODE_SMART_CHARGE,
     _is_slot_mode_active,
+    _filter_future_dispatches,
 )
 
 
@@ -46,3 +49,27 @@ def test_device_offpeak_respects_device_helper():
 
     assert _is_slot_mode_active(system, SLOT_MODE_OFFPEAK, "vehicle-2", 60)
     assert system.calls == [("device_offpeak", 60, "vehicle-2")]
+
+
+def test_filter_future_dispatches_ignores_expired_entries():
+    now = datetime(2025, 12, 26, 0, 0, tzinfo=timezone.utc)
+    dispatches = [
+        {"endDtUtc": "2025-12-25 23:00:00+0000", "id": "past"},
+        {"endDtUtc": "2025-12-26 01:00:00+0000", "id": "future"},
+    ]
+
+    filtered = _filter_future_dispatches(dispatches, now=now)
+
+    assert [entry["id"] for entry in filtered] == ["future"]
+
+
+def test_filter_future_dispatches_keeps_entries_without_end_time():
+    now = datetime(2025, 12, 26, 0, 0, tzinfo=timezone.utc)
+    dispatches = [
+        {"end": "2025-12-26T01:00:00+00:00", "id": "iso"},
+        {"id": "missing-end"},
+    ]
+
+    filtered = _filter_future_dispatches(dispatches, now=now)
+
+    assert [entry["id"] for entry in filtered] == ["iso", "missing-end"]
