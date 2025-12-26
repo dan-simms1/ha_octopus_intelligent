@@ -1,5 +1,9 @@
 # Release Notes
 
+## 2.0.29
+- ISO8601 timestamps with colon offsets (e.g. `+00:00`) are now parsed correctly, so Planned Dispatch Slot sensors drop past slots even when Octopus returns the raw schedule format.
+- Added regression tests covering the new parser to prevent future regressions.
+
 ## 2.0.28
 - Planned Dispatch Slot sensors now ignore stale dispatches, ensuring they only stay `on` when Octopus still has a future smart-charge window scheduled for that device/account.
 - Added defensive timestamp parsing plus regression tests so malformed or legacy API responses can’t keep the sensors stuck in the `on` state.
