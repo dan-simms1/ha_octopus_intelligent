@@ -28,7 +28,7 @@ class OctopusIntelligentPerDeviceEntityMixin:
 
     def _name_prefix(self) -> str:
         if getattr(self, "_is_combined", False):
-            return "Intelligent"
+            return ""
         label = self._equipment_label()
         return label or "Intelligent"
 

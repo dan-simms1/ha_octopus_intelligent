@@ -37,28 +37,28 @@ class SlotDefinition:
 SMART_CHARGE_SLOT_DEFINITIONS: tuple[SlotDefinition, ...] = (
     SlotDefinition(
         unique_id_source="Octopus Intelligent Slot",
-        combined_name="Intelligent Smart-Charge Slot",
+        combined_name="Smart-Charge Slot",
         suffix="Smart-Charge Slot",
         store_attributes=True,
         look_ahead_mins=0,
     ),
     SlotDefinition(
         unique_id_source="Octopus Intelligent Slot (next 1 hour)",
-        combined_name="Intelligent Smart-Charge Slot (next 1 hour)",
+        combined_name="Smart-Charge Slot (next 1 hour)",
         suffix="Smart-Charge Slot (next 1 hour)",
         store_attributes=False,
         look_ahead_mins=60,
     ),
     SlotDefinition(
         unique_id_source="Octopus Intelligent Slot (next 2 hours)",
-        combined_name="Intelligent Smart-Charge Slot (next 2 hours)",
+        combined_name="Smart-Charge Slot (next 2 hours)",
         suffix="Smart-Charge Slot (next 2 hours)",
         store_attributes=False,
         look_ahead_mins=120,
     ),
     SlotDefinition(
         unique_id_source="Octopus Intelligent Slot (next 3 hours)",
-        combined_name="Intelligent Smart-Charge Slot (next 3 hours)",
+        combined_name="Smart-Charge Slot (next 3 hours)",
         suffix="Smart-Charge Slot (next 3 hours)",
         store_attributes=False,
         look_ahead_mins=180,
@@ -69,28 +69,28 @@ SMART_CHARGE_SLOT_DEFINITIONS: tuple[SlotDefinition, ...] = (
 OFFPEAK_WINDOW_DEFINITIONS: tuple[SlotDefinition, ...] = (
     SlotDefinition(
         unique_id_source="Intelligent Offpeak Window",
-        combined_name="Intelligent Offpeak Window",
+        combined_name="Offpeak Window",
         suffix="Offpeak Window",
         store_attributes=False,
         look_ahead_mins=0,
     ),
     SlotDefinition(
         unique_id_source="Intelligent Offpeak Window (next 1 hour)",
-        combined_name="Intelligent Offpeak Window (next 1 hour)",
+        combined_name="Offpeak Window (next 1 hour)",
         suffix="Offpeak Window (next 1 hour)",
         store_attributes=False,
         look_ahead_mins=60,
     ),
     SlotDefinition(
         unique_id_source="Intelligent Offpeak Window (next 2 hours)",
-        combined_name="Intelligent Offpeak Window (next 2 hours)",
+        combined_name="Offpeak Window (next 2 hours)",
         suffix="Offpeak Window (next 2 hours)",
         store_attributes=False,
         look_ahead_mins=120,
     ),
     SlotDefinition(
         unique_id_source="Intelligent Offpeak Window (next 3 hours)",
-        combined_name="Intelligent Offpeak Window (next 3 hours)",
+        combined_name="Offpeak Window (next 3 hours)",
         suffix="Offpeak Window (next 3 hours)",
         store_attributes=False,
         look_ahead_mins=180,
@@ -185,8 +185,9 @@ async def async_setup_entry(
         OctopusIntelligentPlannedDispatchSlot(
             hass,
             octopus_system,
-            "Octopus Intelligent Planned Dispatch Slot",
             "Planned Dispatch Slot",
+            "Planned Dispatch Slot",
+            unique_id_source="Octopus Intelligent Planned Dispatch Slot",
         )
     )
 
@@ -198,9 +199,10 @@ async def async_setup_entry(
             OctopusIntelligentPlannedDispatchSlot(
                 hass,
                 octopus_system,
-                "Octopus Intelligent Planned Dispatch Slot",
+                "Planned Dispatch Slot",
                 "Planned Dispatch Slot",
                 device_id=device_id,
+                unique_id_source="Octopus Intelligent Planned Dispatch Slot",
             )
         )
 
@@ -342,6 +344,7 @@ class OctopusIntelligentPlannedDispatchSlot(
         name_suffix: str,
         *,
         device_id: str | None = None,
+        unique_id_source: str | None = None,
     ) -> None:
         """Initialize the binary sensor."""
         super().__init__(octopus_system)
@@ -350,10 +353,11 @@ class OctopusIntelligentPlannedDispatchSlot(
         self._is_combined = device_id is None
         self._combined_name = combined_name
         self._name_suffix = name_suffix
+        slug_source = unique_id_source or combined_name
         self._unique_id = (
-            slugify(combined_name)
+            slugify(slug_source)
             if self._is_combined
-            else slugify(f"{combined_name}_{device_id}")
+            else slugify(f"{slug_source}_{device_id}")
         )
         self._attributes = {}
         self._is_on = False

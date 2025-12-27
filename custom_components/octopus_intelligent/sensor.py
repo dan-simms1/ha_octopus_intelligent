@@ -307,7 +307,7 @@ class OctopusIntelligentChargingStartSensor(
 
     @property
     def name(self):
-        return "Intelligent Charging Start"
+        return self._prefixed_name("Charging Start")
 
     @property
     def unique_id(self) -> str:
