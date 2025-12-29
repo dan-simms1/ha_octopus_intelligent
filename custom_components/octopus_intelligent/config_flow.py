@@ -107,6 +107,14 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
         errors = {}
 
         form_values = {
+            CONF_API_KEY: self.config_entry.options.get(
+                CONF_API_KEY,
+                self.config_entry.data.get(CONF_API_KEY, ""),
+            ) or "",
+            CONF_ACCOUNT_ID: self.config_entry.options.get(
+                CONF_ACCOUNT_ID,
+                self.config_entry.data.get(CONF_ACCOUNT_ID, ""),
+            ) or "",
             CONF_OFFPEAK_START: self.config_entry.options.get(
                 CONF_OFFPEAK_START,
                 self.config_entry.data.get(CONF_OFFPEAK_START, CONF_OFFPEAK_START_DEFAULT),
@@ -119,15 +127,39 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
                 CONF_POLL_INTERVAL, CONF_POLL_INTERVAL_DEFAULT
             ),
         }
+        existing_api_key = form_values[CONF_API_KEY]
+        existing_account_id = form_values[CONF_ACCOUNT_ID]
 
         if user_input is not None:
-            form_values.update(user_input)
+            sanitized_input = dict(user_input)
+            sanitized_input[CONF_API_KEY] = sanitized_input[CONF_API_KEY].strip()
+            sanitized_input[CONF_ACCOUNT_ID] = sanitized_input[CONF_ACCOUNT_ID].strip()
+            form_values.update(sanitized_input)
+
+            credentials_changed = (
+                sanitized_input[CONF_API_KEY] != existing_api_key
+                or sanitized_input[CONF_ACCOUNT_ID] != existing_account_id
+            )
+
+            if credentials_changed:
+                try:
+                    await try_connection(
+                        sanitized_input[CONF_API_KEY],
+                        sanitized_input[CONF_ACCOUNT_ID],
+                    )
+                except InvalidAuthError:
+                    errors["base"] = "invalid_auth"
+                except Exception as ex:  # pylint: disable=broad-exception-caught
+                    _LOGGER.error("Error validating Octopus credentials: %s", ex)
+                    errors["base"] = "unknown"
 
             if not errors:
                 new_options = dict(self.config_entry.options)
-                new_options[CONF_OFFPEAK_START] = user_input[CONF_OFFPEAK_START]
-                new_options[CONF_OFFPEAK_END] = user_input[CONF_OFFPEAK_END]
-                new_options[CONF_POLL_INTERVAL] = user_input.get(
+                new_options[CONF_API_KEY] = form_values[CONF_API_KEY]
+                new_options[CONF_ACCOUNT_ID] = form_values[CONF_ACCOUNT_ID]
+                new_options[CONF_OFFPEAK_START] = form_values[CONF_OFFPEAK_START]
+                new_options[CONF_OFFPEAK_END] = form_values[CONF_OFFPEAK_END]
+                new_options[CONF_POLL_INTERVAL] = form_values.get(
                     CONF_POLL_INTERVAL,
                     CONF_POLL_INTERVAL_DEFAULT,
                 )
@@ -135,6 +167,14 @@ class OctopusIntelligentOptionsFlowHandler(config_entries.OptionsFlow):
                 return self.async_create_entry(title="", data=new_options)
 
         fields = OrderedDict()
+        fields[vol.Required(
+            CONF_API_KEY,
+            default=form_values[CONF_API_KEY],
+        )] = str
+        fields[vol.Required(
+            CONF_ACCOUNT_ID,
+            default=form_values[CONF_ACCOUNT_ID],
+        )] = str
         fields[vol.Required(
             CONF_OFFPEAK_START,
             default=form_values[CONF_OFFPEAK_START],

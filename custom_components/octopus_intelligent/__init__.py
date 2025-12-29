@@ -61,10 +61,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
         entry.data.get(CONF_OFFPEAK_END),
     ) or CONF_OFFPEAK_END_DEFAULT
 
+    api_key = entry.options.get(CONF_API_KEY) or entry.data.get(CONF_API_KEY)
+    account_id = entry.options.get(CONF_ACCOUNT_ID) or entry.data.get(CONF_ACCOUNT_ID)
+
+    if not api_key or not account_id:
+        _LOGGER.error("Missing Octopus Intelligent credentials; aborting setup")
+        return False
+
     octopus_system = OctopusIntelligentSystem(
         hass,
-        api_key=entry.data[CONF_API_KEY],
-        account_id=entry.data[CONF_ACCOUNT_ID],
+        api_key=api_key,
+        account_id=account_id,
         off_peak_start=to_timedelta(off_peak_start_str),
         off_peak_end=to_timedelta(off_peak_end_str),
         primary_equipment_id=entry.options.get(CONF_PRIMARY_EQUIPMENT_ID),

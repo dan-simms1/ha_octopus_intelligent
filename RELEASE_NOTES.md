@@ -1,6 +1,8 @@
 # Release Notes
 
-# Release Notes
+## 2.1.3
+- Configure dialog now lets you update the Octopus API key and account ID without deleting the integration, and the coordinator automatically uses the newest credentials.
+- Options flow re-validates credentials only when they change, guarding against typos while keeping existing keys untouched.
 
 ## 2.1.1
 - Fixed the Target State of Charge select so it no longer crashes when Octopus returns `HH:MM:SS` timestamps. Time parsing now accepts seconds, and regression tests cover the helper.
