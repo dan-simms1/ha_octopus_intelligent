@@ -262,8 +262,8 @@ class OctopusEnergyGraphQLClient:
   async def __async_trigger_boost_charge(self, session, account_id: str, device_id: Optional[str]):
     query = gql(
       '''
-        mutation triggerBoostCharge($accountNumber: String!, $deviceId: ID) {
-          triggerBoostCharge(input: { accountNumber: $accountNumber, deviceId: $deviceId }) {
+        mutation triggerBoostCharge($accountNumber: String!) {
+          triggerBoostCharge(input: { accountNumber: $accountNumber }) {
             krakenflexDevice {
               krakenflexDeviceId
             }
@@ -272,15 +272,15 @@ class OctopusEnergyGraphQLClient:
       '''
     )
 
-    params = {"accountNumber": account_id, "deviceId": device_id}
+    params = {"accountNumber": account_id}
     result = await session.execute(query, variable_values=params, operation_name="triggerBoostCharge")
     return result['triggerBoostCharge']
 
   async def __async_cancel_boost_charge(self, session, account_id: str, device_id: Optional[str]):
     query = gql(
       '''
-        mutation deleteBoostCharge($accountNumber: String!, $deviceId: ID) {
-          deleteBoostCharge(input: { accountNumber: $accountNumber, deviceId: $deviceId }) {
+        mutation deleteBoostCharge($accountNumber: String!) {
+          deleteBoostCharge(input: { accountNumber: $accountNumber }) {
             krakenflexDevice {
               krakenflexDeviceId
             }
@@ -289,7 +289,7 @@ class OctopusEnergyGraphQLClient:
       '''
     )
 
-    params = {"accountNumber": account_id, "deviceId": device_id}
+    params = {"accountNumber": account_id}
     result = await session.execute(query, variable_values=params, operation_name="deleteBoostCharge")
     return result['deleteBoostCharge']
 
@@ -429,5 +429,4 @@ class OctopusEnergyGraphQLClient:
     params = {"deviceId": device_id}
     result = await session.execute(query, variable_values=params, operation_name="updateDeviceSmartControl")
     return result['updateDeviceSmartControl']
-
 
