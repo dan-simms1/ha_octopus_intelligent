@@ -1,10 +1,10 @@
 {    
   "domain": "octopus_intelligent",
   "name": "Octopus Intelligent Tariff",
-  "version": "2.1.4",
-  "documentation": "https://github.com/megakid/ha_octopus_intelligent",
-  "issue_tracker": "https://github.com/megakid/ha_octopus_intelligent/issues",
-  "codeowners": ["@megakid"],
+  "version": "2.1.5",
+  "documentation": "https://github.com/dan-simms1/ha_octopus_intelligent",
+  "issue_tracker": "https://github.com/dan-simms1/ha_octopus_intelligent/issues",
+  "codeowners": ["@dan-simms1"],
   "iot_class": "cloud_polling",
   "config_flow": true,
   "requirements": ["gql~=3.5.0"]
