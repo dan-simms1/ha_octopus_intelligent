@@ -1,5 +1,6 @@
 """Support for Octopus Intelligent Tariff in the UK."""
 from dataclasses import dataclass
+from collections import Counter
 from datetime import timedelta, datetime, timezone
 from typing import Any
 import asyncio
@@ -241,18 +242,39 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
             return
 
         all_sources = [disp.get("meta", {}).get("source", "") for disp in dispatches]
-        good_sources: set[str] = {src for src in all_sources if src}
+        has_missing = any(not src for src in all_sources)
+        source_counts = Counter(src for src in all_sources if src)
         selected_source = ""
+        fallback_source = ""
 
-        if good_sources:
-            if len(good_sources) > 1:
+        if source_counts:
+            if len(source_counts) == 1:
+                selected_source = next(iter(source_counts))
+                fallback_source = selected_source
+            elif has_missing:
+                preferred_source = (
+                    self._persistent_data.last_seen_planned_dispatch_sources.get(
+                        device_id,
+                        self._persistent_data.last_seen_planned_dispatch_source,
+                    )
+                )
+                fallback_source = (
+                    preferred_source
+                    if preferred_source in source_counts
+                    else source_counts.most_common(1)[0][0]
+                )
                 _LOGGER.warning(
-                    "Unexpected mix of planned dispatch sources for %s: %s",
+                    "Mixed planned dispatch sources for %s: %s; using '%s' for missing entries",
                     device_id,
-                    good_sources,
+                    set(source_counts),
+                    fallback_source,
                 )
             else:
-                selected_source = next(iter(good_sources))
+                _LOGGER.debug(
+                    "Mixed planned dispatch sources for %s: %s",
+                    device_id,
+                    set(source_counts),
+                )
 
         if selected_source:
             self._persistent_data.last_seen_planned_dispatch_sources[device_id] = (
@@ -260,12 +282,15 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
             )
             self._persistent_data.last_seen_planned_dispatch_source = selected_source
 
-        fallback_source = self._persistent_data.last_seen_planned_dispatch_sources.get(
-            device_id,
-            self._persistent_data.last_seen_planned_dispatch_source,
-        )
+        if not fallback_source:
+            fallback_source = (
+                self._persistent_data.last_seen_planned_dispatch_sources.get(
+                    device_id,
+                    self._persistent_data.last_seen_planned_dispatch_source,
+                )
+            )
 
-        if fallback_source and any(not src for src in all_sources):
+        if fallback_source and has_missing:
             _LOGGER.debug(
                 "Missing planned dispatch source in Octopus API response for %s, assuming '%s'",
                 device_id,

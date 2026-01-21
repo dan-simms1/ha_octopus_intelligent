@@ -1,7 +1,7 @@
 {    
   "domain": "octopus_intelligent",
   "name": "Octopus Intelligent Tariff",
-  "version": "2.1.3",
+  "version": "2.1.4",
   "documentation": "https://github.com/megakid/ha_octopus_intelligent",
   "issue_tracker": "https://github.com/megakid/ha_octopus_intelligent/issues",
   "codeowners": ["@megakid"],
