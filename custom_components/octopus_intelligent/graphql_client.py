@@ -4,6 +4,7 @@ from typing import Callable, Optional
 
 from gql import Client, gql
 from gql.transport.aiohttp import AIOHTTPTransport
+from graphql import GraphQLInputObjectType, GraphQLNonNull, GraphQLObjectType, get_named_type
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -260,38 +261,241 @@ class OctopusEnergyGraphQLClient:
     return result['setDevicePreferences']
 
   async def __async_trigger_boost_charge(self, session, account_id: str, device_id: Optional[str]):
-    query = gql(
-      '''
-        mutation triggerBoostCharge($accountNumber: String!) {
-          triggerBoostCharge(input: { accountNumber: $accountNumber }) {
-            krakenflexDevice {
-              krakenflexDeviceId
-            }
-          }
-        }
-      '''
+    mutation_name, field_info = self.__select_boost_charge_mutation(
+      session,
+      action="trigger",
+      device_id=device_id,
     )
-
-    params = {"accountNumber": account_id}
-    result = await session.execute(query, variable_values=params, operation_name="triggerBoostCharge")
-    return result['triggerBoostCharge']
+    query, params = self.__build_boost_charge_mutation(
+      mutation_name,
+      field_info,
+      account_id,
+      device_id,
+      action="BOOST",
+    )
+    result = await session.execute(query, variable_values=params, operation_name=mutation_name)
+    return result[mutation_name]
 
   async def __async_cancel_boost_charge(self, session, account_id: str, device_id: Optional[str]):
-    query = gql(
-      '''
-        mutation deleteBoostCharge($accountNumber: String!) {
-          deleteBoostCharge(input: { accountNumber: $accountNumber }) {
-            krakenflexDevice {
-              krakenflexDeviceId
-            }
-          }
-        }
-      '''
+    mutation_name, field_info = self.__select_boost_charge_mutation(
+      session,
+      action="cancel",
+      device_id=device_id,
     )
+    query, params = self.__build_boost_charge_mutation(
+      mutation_name,
+      field_info,
+      account_id,
+      device_id,
+      action="CANCEL",
+    )
+    result = await session.execute(query, variable_values=params, operation_name=mutation_name)
+    return result[mutation_name]
 
-    params = {"accountNumber": account_id}
-    result = await session.execute(query, variable_values=params, operation_name="deleteBoostCharge")
-    return result['deleteBoostCharge']
+  def __select_boost_charge_mutation(self, session, *, action: str, device_id: Optional[str]):
+    schema = getattr(getattr(session, "client", None), "schema", None)
+    mutation_type = getattr(schema, "mutation_type", None) if schema else None
+    fields = getattr(mutation_type, "fields", {}) if mutation_type else {}
+    if not fields:
+      return ("triggerBoostCharge" if action == "trigger" else "deleteBoostCharge"), {
+        "arg_mode": "input",
+        "input_fields": {},
+        "arg_fields": {},
+      }
+
+    action = action.lower()
+    expected_name = "triggerboostcharge" if action == "trigger" else "deleteboostcharge"
+    candidates: list[tuple[str, object, dict]] = []
+
+    for name, field in fields.items():
+      lname = name.lower()
+      if "boost" not in lname or "charge" not in lname:
+        continue
+      if action == "trigger" and not any(key in lname for key in ("trigger", "start", "update")):
+        continue
+      if action == "cancel" and not any(key in lname for key in ("delete", "cancel", "stop", "update")):
+        continue
+      info = self.__describe_mutation_field(field)
+      if device_id and not info.get("supports_device"):
+        continue
+      candidates.append((name, field, info))
+
+    if not candidates and fields:
+      name = "triggerBoostCharge" if action == "trigger" else "deleteBoostCharge"
+      field = fields.get(name)
+      if field:
+        info = self.__describe_mutation_field(field)
+        candidates.append((name, field, info))
+
+    if not candidates:
+      return ("triggerBoostCharge" if action == "trigger" else "deleteBoostCharge"), {
+        "arg_mode": "input",
+        "input_fields": {},
+        "arg_fields": {},
+      }
+
+    def _score(item):
+      name, _, info = item
+      score = 0
+      if name.lower() == expected_name:
+        score += 2
+      if "updateboostcharge" in name.lower():
+        score += 1
+      if info.get("supports_device"):
+        score += 1
+      if info.get("supports_account"):
+        score += 1
+      if info.get("supports_action"):
+        score += 1
+      return score
+
+    mutation_name, _, info = sorted(candidates, key=_score, reverse=True)[0]
+    if device_id and not info.get("supports_device"):
+      _LOGGER.warning(
+        "Boost charge mutation '%s' does not support device targeting; default device will be used.",
+        mutation_name,
+      )
+    return mutation_name, info
+
+  def __describe_mutation_field(self, field) -> dict:
+    arg_fields = getattr(field, "args", {}) or {}
+    input_fields = {}
+    supports_device = False
+    supports_account = False
+    supports_action = False
+    action_field = None
+    arg_mode = "direct"
+    return_type = get_named_type(getattr(field, "type", None)) if getattr(field, "type", None) else None
+    if "input" in arg_fields:
+      input_type = get_named_type(arg_fields["input"].type)
+      if isinstance(input_type, GraphQLInputObjectType):
+        input_fields = input_type.fields
+        supports_device = any(key in input_fields for key in ("deviceId", "krakenflexDeviceId"))
+        supports_account = any(key in input_fields for key in ("accountNumber", "accountId"))
+        for key in ("action", "boostAction", "boostChargeAction"):
+          if key in input_fields:
+            supports_action = True
+            action_field = key
+            break
+        arg_mode = "input"
+    else:
+      supports_device = any(key in arg_fields for key in ("deviceId", "krakenflexDeviceId"))
+      supports_account = any(key in arg_fields for key in ("accountNumber", "accountId"))
+      for key in ("action", "boostAction", "boostChargeAction"):
+        if key in arg_fields:
+          supports_action = True
+          action_field = key
+          break
+    return {
+      "arg_mode": arg_mode,
+      "input_fields": input_fields,
+      "arg_fields": arg_fields,
+      "supports_device": supports_device,
+      "supports_account": supports_account,
+      "supports_action": supports_action,
+      "action_field": action_field,
+      "return_type": return_type,
+    }
+
+  def __build_boost_charge_mutation(
+    self,
+    mutation_name: str,
+    field_info: dict,
+    account_id: str,
+    device_id: Optional[str],
+    action: str,
+  ):
+    arg_mode = field_info.get("arg_mode", "input")
+    input_fields = field_info.get("input_fields", {})
+    arg_fields = field_info.get("arg_fields", {})
+    action_field = field_info.get("action_field")
+
+    account_field = None
+    for key in ("accountNumber", "accountId"):
+      if key in input_fields or key in arg_fields:
+        account_field = key
+        break
+
+    device_field = None
+    for key in ("deviceId", "krakenflexDeviceId"):
+      if key in input_fields or key in arg_fields:
+        device_field = key
+        break
+
+    def _type_info(field_type):
+      required = isinstance(field_type, GraphQLNonNull)
+      named = get_named_type(field_type)
+      type_name = named.name if named else "String"
+      return type_name, required
+
+    var_defs: list[str] = []
+    params = {}
+    input_entries: list[str] = []
+
+    if arg_mode == "input":
+      if account_field and account_field in input_fields:
+        account_type, account_required = _type_info(input_fields[account_field].type)
+        var_defs.append(f"${account_field}: {account_type}{'!' if account_required else ''}")
+        params[account_field] = account_id
+        input_entries.append(f"{account_field}: ${account_field}")
+
+      if device_id and device_field and device_field in input_fields:
+        device_type, device_required = _type_info(input_fields[device_field].type)
+        var_defs.append(f"${device_field}: {device_type}{'!' if device_required else ''}")
+        params[device_field] = device_id
+        input_entries.append(f"{device_field}: ${device_field}")
+      if action_field and action_field in input_fields:
+        action_type, action_required = _type_info(input_fields[action_field].type)
+        var_defs.append(f"${action_field}: {action_type}{'!' if action_required else ''}")
+        params[action_field] = action
+        input_entries.append(f"{action_field}: ${action_field}")
+
+      var_block = f"({', '.join(var_defs)})" if var_defs else ""
+      input_block = ", ".join(input_entries)
+      selection = self.__mutation_selection_for(field_info)
+      query = gql(
+        f"""
+        mutation {mutation_name}{var_block} {{
+          {mutation_name}(input: {{ {input_block} }}) {selection}
+        }}
+        """
+      )
+      return query, params
+
+    call_args = []
+    if account_field and account_field in arg_fields:
+      account_type, account_required = _type_info(arg_fields[account_field].type)
+      var_defs.append(f"${account_field}: {account_type}{'!' if account_required else ''}")
+      params[account_field] = account_id
+      call_args.append(f"{account_field}: ${account_field}")
+    if device_id and device_field and device_field in arg_fields:
+      device_type, device_required = _type_info(arg_fields[device_field].type)
+      var_defs.append(f"${device_field}: {device_type}{'!' if device_required else ''}")
+      params[device_field] = device_id
+      call_args.append(f"{device_field}: ${device_field}")
+    if action_field and action_field in arg_fields:
+      action_type, action_required = _type_info(arg_fields[action_field].type)
+      var_defs.append(f"${action_field}: {action_type}{'!' if action_required else ''}")
+      params[action_field] = action
+      call_args.append(f"{action_field}: ${action_field}")
+
+    var_block = f"({', '.join(var_defs)})" if var_defs else ""
+    call_block = ", ".join(call_args)
+    selection = self.__mutation_selection_for(field_info)
+    query = gql(
+      f"""
+      mutation {mutation_name}{var_block} {{
+        {mutation_name}({call_block}) {selection}
+      }}
+      """
+    )
+    return query, params
+
+  def __mutation_selection_for(self, field_info: dict) -> str:
+    return_type = field_info.get("return_type")
+    if isinstance(return_type, GraphQLObjectType):
+      return "{ __typename }"
+    return "{ __typename }"
 
   async def __async_get_accounts(self, session):
     query = gql(
@@ -429,4 +633,3 @@ class OctopusEnergyGraphQLClient:
     params = {"deviceId": device_id}
     result = await session.execute(query, variable_values=params, operation_name="updateDeviceSmartControl")
     return result['updateDeviceSmartControl']
-
