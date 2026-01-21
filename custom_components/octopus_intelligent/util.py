@@ -93,10 +93,12 @@ def format_equipment_name(device: Mapping[str, Any] | None, fallback: str | None
         return not has_lower and has_identifier_chars
 
     label_value = device.get("label")
-    if isinstance(label_value, str) and label_value.strip() and not _looks_like_identifier(label_value):
+    label_is_identifier = _looks_like_identifier(label_value)
+    if isinstance(label_value, str) and label_value.strip() and not label_is_identifier:
         return label_value.strip()
 
-    _add_part(label_value)
+    if label_value and not label_is_identifier:
+        _add_part(label_value)
 
     make = device.get("make") or device.get("vehicleMake") or device.get("chargePointMake")
     model = device.get("model") or device.get("vehicleModel") or device.get("chargePointModel")
@@ -109,6 +111,9 @@ def format_equipment_name(device: Mapping[str, Any] | None, fallback: str | None
 
     if parts:
         return " - ".join(parts)
+
+    if label_value and isinstance(label_value, str) and label_value.strip():
+        return label_value.strip()
 
     fallback_value = fallback or device.get("id")
     if isinstance(fallback_value, str) and fallback_value.strip():
