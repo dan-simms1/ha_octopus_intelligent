@@ -1,6 +1,6 @@
 delete_device:
   name: Delete device
-  description: Remove an Octopus Intelligent car/charger from Home Assistant and stop re-adding it.
+  description: Remove an Octopus Intelligent car/charger from Home Assistant. If Octopus still reports the device, it will return on the next reload.
   fields:
     device_id:
       name: Device
