@@ -1,5 +1,8 @@
 # Release Notes
 
+## 2.2.1
+- Deleted cars are only removed until the next reload if Octopus still reports them; only devices no longer returned by the API remain gone.
+
 ## 2.2.0
 - Device entries can now be deleted from the Home Assistant UI; deleted cars are remembered and won't be re-created.
 - Device deletion is now restricted to car/charger devices; the account-level Octopus Intelligent Tariff device can't be deleted from the UI.

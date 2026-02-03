@@ -167,12 +167,10 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
         try:
             async with asyncio.timeout(90):
                 raw_devices = await self.client.async_get_devices(self._account_id)
-                ignored_ids = set(self.get_ignored_device_ids())
                 devices = [
                     device
                     for device in raw_devices or []
                     if is_supported_equipment(device)
-                    and device.get("id") not in ignored_ids
                 ]
                 if not devices:
                     raise UpdateFailed("No supported intelligent equipment found for account")
@@ -378,51 +376,12 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
         devices = (self.data or {}).get("devices") or {}
         return list(devices.keys())
 
-    def get_ignored_device_ids(self) -> set[str]:
-        return set(self._persistent_data.ignored_device_ids or [])
-
-    def is_device_ignored(self, device_id: str | None) -> bool:
-        if not device_id:
-            return False
-        return device_id in self.get_ignored_device_ids()
-
-    def is_known_device_id(self, device_id: str | None) -> bool:
-        if not device_id:
-            return False
-        if self.is_device_ignored(device_id):
-            return True
-        return device_id in self.get_supported_device_ids()
-
     def get_primary_equipment_id(self) -> str | None:
         data_primary = (self.data or {}).get("primary_equipment_id") if self.data else None
         return data_primary or self._primary_equipment_id
 
     def set_primary_equipment_id(self, equipment_id: str | None):
         self._primary_equipment_id = equipment_id
-
-    async def async_ignore_device(self, device_id: str, *, save=True) -> None:
-        if not device_id:
-            return
-        ignored = set(self._persistent_data.ignored_device_ids or [])
-        if device_id in ignored:
-            return
-        ignored.add(device_id)
-        self._persistent_data.ignored_device_ids = sorted(ignored)
-        if self._primary_equipment_id == device_id:
-            self._primary_equipment_id = None
-        if save:
-            await self._store.save(raise_on_error=False)
-
-    async def async_unignore_device(self, device_id: str, *, save=True) -> None:
-        if not device_id:
-            return
-        ignored = set(self._persistent_data.ignored_device_ids or [])
-        if device_id not in ignored:
-            return
-        ignored.remove(device_id)
-        self._persistent_data.ignored_device_ids = sorted(ignored)
-        if save:
-            await self._store.save(raise_on_error=False)
 
     @staticmethod
     def _format_dispatch_time(value: Any) -> str | None:

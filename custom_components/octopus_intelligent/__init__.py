@@ -183,7 +183,6 @@ async def async_remove_config_entry_device(
         )
         return False
 
-    await octopus_system.async_ignore_device(octopus_device_id)
     return True
 
 
@@ -224,8 +223,6 @@ async def _async_remove_stale_devices(
     registry = dr.async_get(hass)
     entity_registry = er.async_get(hass)
     active_ids = set(octopus_system.get_supported_device_ids())
-    ignored_ids = octopus_system.get_ignored_device_ids()
-
     to_remove: list[tuple[str, str]] = []
     for device in list(registry.devices.values()):
         if entry.entry_id not in device.config_entries:
@@ -239,7 +236,7 @@ async def _async_remove_stale_devices(
         if not device_id:
             continue
 
-        if device_id in ignored_ids or device_id not in active_ids:
+        if device_id not in active_ids:
             to_remove.append((device.id, device_id))
 
     for ha_device_id, octopus_device_id in to_remove:
@@ -303,7 +300,6 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             )
             return
 
-        await octopus_system.async_ignore_device(octopus_device_id)
         _async_remove_device_entities(entity_registry, ha_device_id)
         registry.async_remove_device(ha_device_id)
         await octopus_system.async_refresh()
