@@ -1,21 +1,21 @@
 """Support for Octopus Intelligent Tariff in the UK."""
 import logging
-from .octopus_intelligent_system import OctopusIntelligentSystem
 
-
-import homeassistant.util.dt as dt_util
+import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     CONF_API_KEY,
 )
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import entity_registry as er, device_registry as dr
 
-from .const import(
+from .octopus_intelligent_system import OctopusIntelligentSystem
+from .const import (
+    ATTR_DEVICE_ID,
     DOMAIN,
     OCTOPUS_SYSTEM,
-
+    SERVICE_DELETE_DEVICE,
     CONF_ACCOUNT_ID,
     CONF_OFFPEAK_START,
     CONF_OFFPEAK_END,
@@ -32,12 +32,18 @@ _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["switch", "binary_sensor", "select", "sensor"]
 
+SERVICE_DELETE_DEVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required(ATTR_DEVICE_ID): str,
+    }
+)
+
 async def async_setup(hass: HomeAssistant, config: dict):
     """Set up the Octopus Intelligent System integration."""
 
     if DOMAIN not in hass.data:
         hass.data[DOMAIN] = {}
-    
+
     return True
 
 
@@ -93,7 +99,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     await _async_cleanup_legacy_controls(hass)
     await _async_remove_unsupported_devices(hass)
+    await _async_remove_stale_devices(hass, entry, octopus_system)
     await _async_update_vehicle_device_icons(hass, entry, octopus_system)
+    await _async_register_services(hass)
 
     #hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, lambda event: octopus_system.stop())
 
@@ -124,6 +132,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             
             # Remove the entry data
             hass.data[DOMAIN].pop(entry.entry_id)
+
+    if not hass.data.get(DOMAIN):
+        _async_remove_services(hass)
     
     _LOGGER.debug("Octopus Intelligent System component unload finished")
     return unload_ok
@@ -138,6 +149,172 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry):
         await octopus_system.async_remove_entry()
     except Exception as ex:  # pylint: disable=broad-exception-caught
         _LOGGER.error(ex)
+
+
+async def async_remove_config_entry_device(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    device_entry: dr.DeviceEntry,
+) -> bool:
+    """Handle device deletion from the UI."""
+    octopus_system: OctopusIntelligentSystem | None = (
+        hass.data.get(DOMAIN, {})
+        .get(entry.entry_id, {})
+        .get(OCTOPUS_SYSTEM)
+    )
+    if not octopus_system:
+        return False
+
+    octopus_device_id = _extract_device_id(
+        device_entry.identifiers or set(),
+        octopus_system.account_id,
+    )
+    if not octopus_device_id:
+        _LOGGER.warning(
+            "Unable to resolve Octopus device id for %s; refusing deletion",
+            device_entry.id,
+        )
+        return False
+
+    await octopus_system.async_ignore_device(octopus_device_id)
+    return True
+
+
+def _extract_device_id(identifiers: set[tuple[str, str]], account_id: str) -> str | None:
+    prefix = f"{account_id}_"
+    fallback: str | None = None
+    for domain, identifier in identifiers or set():
+        if domain != DOMAIN or not isinstance(identifier, str):
+            continue
+        if identifier.startswith(prefix):
+            return identifier[len(prefix) :]
+        if not fallback and "_" in identifier:
+            fallback = identifier.split("_", 1)[1]
+    return fallback
+
+
+def _async_remove_device_entities(
+    entity_registry: er.EntityRegistry, device_id: str
+) -> None:
+    to_remove: list[str] = []
+    for entity_id, entry in list(entity_registry.entities.items()):
+        if entry.device_id != device_id:
+            continue
+        if entry.platform != DOMAIN:
+            continue
+        to_remove.append(entity_id)
+
+    for entity_id in to_remove:
+        entity_registry.async_remove(entity_id)
+
+
+async def _async_remove_stale_devices(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    octopus_system: OctopusIntelligentSystem,
+) -> None:
+    """Remove devices that are ignored or no longer present in Octopus."""
+    registry = dr.async_get(hass)
+    entity_registry = er.async_get(hass)
+    active_ids = set(octopus_system.get_supported_device_ids())
+    ignored_ids = octopus_system.get_ignored_device_ids()
+
+    to_remove: list[tuple[str, str]] = []
+    for device in list(registry.devices.values()):
+        if entry.entry_id not in device.config_entries:
+            continue
+
+        identifiers = device.identifiers or set()
+        if not any(domain == DOMAIN for domain, _ in identifiers):
+            continue
+
+        device_id = _extract_device_id(identifiers, octopus_system.account_id)
+        if not device_id:
+            continue
+
+        if device_id in ignored_ids or device_id not in active_ids:
+            to_remove.append((device.id, device_id))
+
+    for ha_device_id, octopus_device_id in to_remove:
+        _LOGGER.debug(
+            "Removing Octopus Intelligent device %s (%s)",
+            ha_device_id,
+            octopus_device_id,
+        )
+        _async_remove_device_entities(entity_registry, ha_device_id)
+        registry.async_remove_device(ha_device_id)
+
+
+async def _async_register_services(hass: HomeAssistant) -> None:
+    if hass.data[DOMAIN].get("services_registered"):
+        return
+
+    async def _handle_delete_device(call: ServiceCall) -> None:
+        registry = dr.async_get(hass)
+        entity_registry = er.async_get(hass)
+        ha_device_id = call.data[ATTR_DEVICE_ID]
+        device_entry = registry.async_get(ha_device_id)
+        if not device_entry:
+            _LOGGER.error("Device %s not found in registry", ha_device_id)
+            return
+
+        identifiers = device_entry.identifiers or set()
+        if not any(domain == DOMAIN for domain, _ in identifiers):
+            _LOGGER.error("Device %s is not managed by Octopus Intelligent", ha_device_id)
+            return
+
+        entry_lookup = {
+            entry.entry_id: entry for entry in hass.config_entries.async_entries(DOMAIN)
+        }
+        config_entry = None
+        for entry_id in device_entry.config_entries:
+            if entry_id in entry_lookup:
+                config_entry = entry_lookup[entry_id]
+                break
+
+        if not config_entry:
+            _LOGGER.error(
+                "No Octopus Intelligent config entry found for device %s",
+                ha_device_id,
+            )
+            return
+
+        entry_data = hass.data[DOMAIN].get(config_entry.entry_id, {})
+        octopus_system: OctopusIntelligentSystem | None = entry_data.get(OCTOPUS_SYSTEM)
+        if not octopus_system:
+            _LOGGER.error(
+                "Octopus Intelligent system not loaded for config entry %s",
+                config_entry.entry_id,
+            )
+            return
+
+        octopus_device_id = _extract_device_id(identifiers, octopus_system.account_id)
+        if not octopus_device_id:
+            _LOGGER.error(
+                "Unable to determine Octopus device id for device %s",
+                ha_device_id,
+            )
+            return
+
+        await octopus_system.async_ignore_device(octopus_device_id)
+        _async_remove_device_entities(entity_registry, ha_device_id)
+        registry.async_remove_device(ha_device_id)
+        await octopus_system.async_refresh()
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DELETE_DEVICE,
+        _handle_delete_device,
+        schema=SERVICE_DELETE_DEVICE_SCHEMA,
+    )
+    hass.data[DOMAIN]["services_registered"] = True
+
+
+def _async_remove_services(hass: HomeAssistant) -> None:
+    if hass.services.has_service(DOMAIN, SERVICE_DELETE_DEVICE):
+        hass.services.async_remove(DOMAIN, SERVICE_DELETE_DEVICE)
+    if DOMAIN in hass.data:
+        hass.data[DOMAIN].pop("services_registered", None)
 
 
 async def _async_cleanup_legacy_controls(hass: HomeAssistant) -> None:

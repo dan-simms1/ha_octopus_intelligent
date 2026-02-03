@@ -1,5 +1,8 @@
 # Release Notes
 
+## 2.1.9
+- Device entries can now be deleted from the Home Assistant UI; deleted cars are remembered and won't be re-created.
+
 ## 2.1.3
 - Configure dialog now lets you update the Octopus API key and account ID without deleting the integration, and the coordinator automatically uses the newest credentials.
 - Options flow re-validates credentials only when they change, guarding against typos while keeping existing keys untouched.

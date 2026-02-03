@@ -20,6 +20,7 @@ class PersistentData:
 
     last_seen_planned_dispatch_source: str = "smart-charge"
     last_seen_planned_dispatch_sources: dict[str, str] = field(default_factory=dict)
+    ignored_device_ids: list[str] = field(default_factory=list)
 
     def set_values(self, data: dict[str, Any]):
         """Assign values from the given dict to this dataclass."""
@@ -33,6 +34,9 @@ class PersistentData:
             "last_seen_planned_dispatch_sources",
             self.last_seen_planned_dispatch_sources,
         )
+        ignored_ids = data.get("ignored_device_ids", self.ignored_device_ids)
+        if isinstance(ignored_ids, list):
+            self.ignored_device_ids = [str(value) for value in ignored_ids if value]
 
 
 class PersistentDataStore:

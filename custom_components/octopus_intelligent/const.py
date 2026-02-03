@@ -18,6 +18,9 @@ ATTR_OPERATING_HOURS = "operating_hours"
 ATTR_LAST_ERROR = "last_error"
 ATTR_ERROR = "error"
 ATTR_STATE = "state"
+ATTR_DEVICE_ID = "device_id"
+
+SERVICE_DELETE_DEVICE: Final = "delete_device"
 
 CONF_OFFPEAK_START: Final = "offpeak_start"
 CONF_OFFPEAK_END: Final = "offpeak_end"
