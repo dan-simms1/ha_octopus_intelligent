@@ -9,6 +9,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import entity_registry as er, device_registry as dr
+from homeassistant.helpers.device_registry import DeviceEntryType
 
 from .octopus_intelligent_system import OctopusIntelligentSystem
 from .const import (
@@ -100,6 +101,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     await _async_cleanup_legacy_controls(hass)
     await _async_remove_unsupported_devices(hass)
     await _async_remove_stale_devices(hass, entry, octopus_system)
+    await _async_reset_account_device_entry_type(hass, octopus_system)
     await _async_update_vehicle_device_icons(hass, entry, octopus_system)
     await _async_register_services(hass)
 
@@ -303,6 +305,20 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         _async_remove_device_entities(entity_registry, ha_device_id)
         registry.async_remove_device(ha_device_id)
         await octopus_system.async_refresh()
+
+
+async def _async_reset_account_device_entry_type(
+    hass: HomeAssistant,
+    octopus_system: OctopusIntelligentSystem,
+) -> None:
+    """Ensure the account-level device isn't marked as a service entry."""
+    registry = dr.async_get(hass)
+    identifiers = {("AccountID", octopus_system.account_id)}
+    device_entry = registry.async_get_device(identifiers)
+    if not device_entry:
+        return
+    if device_entry.entry_type == DeviceEntryType.SERVICE:
+        registry.async_update_device(device_entry.id, entry_type=None)
 
     hass.services.async_register(
         DOMAIN,

@@ -1,5 +1,8 @@
 # Release Notes
 
+## 2.2.2
+- Restored account-level device ordering by clearing the service device entry type on startup (delete remains blocked for the tariff device).
+
 ## 2.2.1
 - Deleted cars are only removed until the next reload if Octopus still reports them; only devices no longer returned by the API remain gone.
 

@@ -11,7 +11,6 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.helpers.event import (
     async_track_utc_time_change
 )
-from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.util import dt as dt_util
 from .const import DOMAIN, OCTOPUS_SYSTEM
 from .entity import OctopusIntelligentPerDeviceEntityMixin
@@ -218,7 +217,6 @@ class _OctopusBinaryEntityBase(OctopusIntelligentPerDeviceEntityMixin):
             },
             "name": "Intelligent Tariff",
             "manufacturer": "Octopus",
-            "entry_type": DeviceEntryType.SERVICE,
         }
 
     def _slot_device_info(self):

@@ -1,7 +1,7 @@
 {    
   "domain": "octopus_intelligent",
   "name": "Octopus Intelligent Tariff",
-  "version": "2.2.1",
+  "version": "2.2.2",
   "documentation": "https://github.com/dan-simms1/ha_octopus_intelligent",
   "issue_tracker": "https://github.com/dan-simms1/ha_octopus_intelligent/issues",
   "codeowners": ["@dan-simms1"],
