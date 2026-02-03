@@ -157,6 +157,13 @@ async def async_remove_config_entry_device(
     device_entry: dr.DeviceEntry,
 ) -> bool:
     """Handle device deletion from the UI."""
+    if not any(domain == DOMAIN for domain, _ in (device_entry.identifiers or set())):
+        _LOGGER.debug(
+            "Refusing to delete non-vehicle device %s",
+            device_entry.id,
+        )
+        return False
+
     octopus_system: OctopusIntelligentSystem | None = (
         hass.data.get(DOMAIN, {})
         .get(entry.entry_id, {})

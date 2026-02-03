@@ -12,6 +12,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.event import (
     async_track_utc_time_change
 )
+from homeassistant.helpers.device_registry import DeviceEntryType
 from .const import DOMAIN, OCTOPUS_SYSTEM
 from .entity import OctopusIntelligentPerDeviceEntityMixin
 from .util import format_equipment_name, normalize_time_string
@@ -142,6 +143,7 @@ class OctopusIntelligentNextOffpeakTime(
                 },
                 "name": "Octopus Intelligent Tariff",
                 "manufacturer": "Octopus",
+                "entry_type": DeviceEntryType.SERVICE,
             }
 
         info = self._device_info()
@@ -238,6 +240,7 @@ class OctopusIntelligentOffpeakEndTime(
                 },
                 "name": "Octopus Intelligent Tariff",
                 "manufacturer": "Octopus",
+                "entry_type": DeviceEntryType.SERVICE,
             }
 
         info = self._device_info()
@@ -330,6 +333,7 @@ class OctopusIntelligentChargingStartSensor(
                 },
                 "name": "Octopus Intelligent Tariff",
                 "manufacturer": "Octopus",
+                "entry_type": DeviceEntryType.SERVICE,
             }
 
         info = self._device_info()
@@ -417,6 +421,7 @@ class OctopusIntelligentTargetReadyTimeSensor(
                 },
                 "name": "Octopus Intelligent Tariff",
                 "manufacturer": "Octopus",
+                "entry_type": DeviceEntryType.SERVICE,
             }
 
         device_state = self._equipment_state() or {}
@@ -509,5 +514,4 @@ class OctopusIntelligentTargetSocSensor(
     @property
     def icon(self):
         return "mdi:battery-check-outline"
-
 
