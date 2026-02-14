@@ -1,5 +1,8 @@
 # Release Notes
 
+## 2.2.3
+- Fixed integration startup failure caused by `NameError: _handle_delete_device` by restoring service registration to `_async_register_services` and keeping account-device cleanup separate.
+
 ## 2.2.2
 - Restored account-level device ordering by clearing the service device entry type on startup (delete remains blocked for the tariff device).
 

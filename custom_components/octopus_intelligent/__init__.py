@@ -306,6 +306,14 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         registry.async_remove_device(ha_device_id)
         await octopus_system.async_refresh()
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_DELETE_DEVICE,
+        _handle_delete_device,
+        schema=SERVICE_DELETE_DEVICE_SCHEMA,
+    )
+    hass.data[DOMAIN]["services_registered"] = True
+
 
 async def _async_reset_account_device_entry_type(
     hass: HomeAssistant,
@@ -319,14 +327,6 @@ async def _async_reset_account_device_entry_type(
         return
     if device_entry.entry_type == DeviceEntryType.SERVICE:
         registry.async_update_device(device_entry.id, entry_type=None)
-
-    hass.services.async_register(
-        DOMAIN,
-        SERVICE_DELETE_DEVICE,
-        _handle_delete_device,
-        schema=SERVICE_DELETE_DEVICE_SCHEMA,
-    )
-    hass.data[DOMAIN]["services_registered"] = True
 
 
 def _async_remove_services(hass: HomeAssistant) -> None:
