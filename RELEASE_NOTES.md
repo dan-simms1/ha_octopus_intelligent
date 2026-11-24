@@ -1,5 +1,8 @@
 # Release Notes
 
+## 2.2.4
+- One device's failed fetch no longer makes the whole integration unavailable. Octopus intermittently answers `KT-CT-4340` ("Unable to fetch planned dispatches") for one device, seen with two cars on one account. The other devices keep updating, and the failed one keeps its last data for up to 30 minutes, with any planned dispatches that have ended dropped. The warning names the device. The update fails only when no device has current or recent data.
+
 ## 2.2.3
 - Fixed integration startup failure caused by `NameError: _handle_delete_device` by restoring service registration to `_async_register_services` and keeping account-device cleanup separate.
 

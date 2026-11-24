@@ -117,6 +117,8 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
         self._primary_equipment_id = primary_equipment_id
         
         self.client = OctopusEnergyGraphQLClient(self._api_key)
+        # Last successful fetch per device (UTC), for reuse_stale_device_state.
+        self._device_last_ok: dict[str, datetime] = {}
         self._persistent_data = PersistentData()
         self._store = PersistentDataStore(self._persistent_data, hass, account_id)
 
@@ -179,17 +181,49 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
                 union_planned: list[dict[str, Any]] = []
                 union_completed: list[dict[str, Any]] = []
 
+                previous_devices = ((self.data or {}).get("devices") or {}) if self.data else {}
+                now = dt_util.utcnow()
+                failures: list[str] = []
+
                 for device in devices:
                     device_id = device.get("id")
                     if not device_id:
                         continue
 
-                    preferences = await self.client.async_get_device_preferences(
-                        self._account_id, device_id
-                    )
-                    dispatches = await self.client.async_get_device_dispatches(
-                        self._account_id, device_id
-                    )
+                    try:
+                        preferences = await self.client.async_get_device_preferences(
+                            self._account_id, device_id
+                        )
+                        dispatches = await self.client.async_get_device_dispatches(
+                            self._account_id, device_id
+                        )
+                    except Exception as err:  # one device's failure must not take down the rest
+                        failures.append(device_id)
+                        kept = reuse_stale_device_state(
+                            previous_devices.get(device_id),
+                            self._device_last_ok.get(device_id),
+                            now,
+                            STALE_DEVICE_MAX,
+                        )
+                        if kept is None:
+                            _LOGGER.warning(
+                                "Octopus data for device %s could not be fetched and no recent data is held: %s",
+                                device_id,
+                                err,
+                            )
+                            continue
+                        _LOGGER.warning(
+                            "Octopus data for device %s could not be fetched; keeping its data from %s: %s",
+                            device_id,
+                            self._device_last_ok.get(device_id),
+                            err,
+                        )
+                        device_states[device_id] = kept
+                        union_planned.extend(kept["plannedDispatches"])
+                        union_completed.extend(kept["completedDispatches"])
+                        continue
+
+                    self._device_last_ok[device_id] = now
                     preferences = preferences or {}
                     dispatches = dispatches or {}
 
@@ -213,6 +247,11 @@ class OctopusIntelligentSystem(DataUpdateCoordinator):
                         "completedDispatches": completed,
                         "status": status,
                     }
+
+                if not device_states:
+                    raise UpdateFailed(
+                        f"Octopus data could not be fetched for any device ({', '.join(failures)})"
+                    )
 
                 union_planned.sort(key=lambda item: item.get("startDtUtc", ""))
                 union_completed.sort(key=lambda item: item.get("startDtUtc", ""))

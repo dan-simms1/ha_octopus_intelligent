@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping
 
 from .const import (
@@ -162,3 +162,46 @@ def is_supported_equipment(device: Mapping[str, Any] | None) -> bool:
         return False
 
     return True
+
+
+# How long a device's last good data may stand in when its own fetch fails
+# (Octopus intermittently answers KT-CT-4340 "Unable to fetch planned
+# dispatches" for one device while the others are fine).
+STALE_DEVICE_MAX = timedelta(minutes=30)
+
+
+def reuse_stale_device_state(previous, last_ok, now, max_age=STALE_DEVICE_MAX):
+    """Return a copy of a device's previous state to stand in for a failed
+    fetch, or None when there is none or it is older than `max_age`.
+
+    Planned dispatches that have already ended are dropped, so a stale plan
+    can't keep a slot "on" past its end; one Octopus cancelled meanwhile can
+    still show until the data is `max_age` old.
+    """
+    if not previous or last_ok is None or now - last_ok > max_age:
+        return None
+    kept = dict(previous)
+    planned = []
+    for dispatch in previous.get("plannedDispatches") or []:
+        end = _parse_dispatch_time(dispatch.get("endDtUtc"))
+        if end is None or end > now:
+            planned.append(dispatch)
+    kept["plannedDispatches"] = planned
+    kept["completedDispatches"] = list(previous.get("completedDispatches") or [])
+    kept["stale_since"] = last_ok.isoformat()
+    return kept
+
+
+def _parse_dispatch_time(value):
+    if not value or not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%d %H:%M:%S%z")
+    except ValueError:
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed
